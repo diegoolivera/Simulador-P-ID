@@ -4,7 +4,7 @@ import type { EsdLevel } from '../engine/esd';
 import { canResetEsd, checkEsdEscalation } from '../engine/esd';
 import { PlantGraph } from '../engine/graph';
 import { createPhase1Graph } from '../data/phase1';
-import { commandValve as applyCommand, createValve, failPositionFromTag, valveTypeFromTag } from '../engine/valve';
+import { commandValve as applyCommand, createValve, failPositionFromTag, setLock, valveTypeFromTag } from '../engine/valve';
 import { createLoop, PHASE1_LOOPS } from '../engine/loops';
 import { PHASE1_ALARM_RULES } from '../engine/alarms';
 import { stepPhysics, type PhysicsOptions } from '../engine/physics';
@@ -28,6 +28,7 @@ type State = {
   setInstrumentAirOk: (ok: boolean) => void;
   setRunning: (running: boolean) => void;
   setScenarioOptions: (options: Partial<PhysicsOptions>) => void;
+  lockValve: (tag: string, locked: boolean, reason: string) => boolean;
   tick: (dt: number) => void;
 };
 
@@ -79,6 +80,17 @@ export const useSimulationStore = create<State>()((set, get) => ({
   setInstrumentAirOk: (ok) => set({ instrumentAirOk: ok }),
   setRunning: (running) => set({ running }),
   setScenarioOptions: (options) => set({ scenarioOptions: options }),
+  lockValve: (tag, locked, reason) => {
+    const { valves, t } = get();
+    const valve = valves.get(tag);
+    if (!valve) return false;
+    const wasLocked = valve.locked;
+    setLock(valve, locked);
+    const audit: AuditEvent[] = [{ t, source: 'operator', tag, field: 'locked', from: wasLocked ? 'locked' : 'unlocked', to: locked ? 'locked' : 'unlocked', reason }];
+    if (audit.length) useEvalStore.getState().record(audit);
+    set({ valves: new Map(valves) });
+    return true;
+  },
   tick: (dt) => {
     const state = get();
     if (!state.running) return;
