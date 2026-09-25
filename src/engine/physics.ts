@@ -69,7 +69,7 @@ export function stepPhysics(graph: PlantGraph, valves: Map<string, Valve>, dt: n
 
   for (const n of graph.nodes.values()) {
     if (n.kind === 'source') continue;
-    const target = pWeight.has(n.id) ? pTarget.get(n.id)! / pWeight.get(n.id)! : n.pressure;
+    const target = pWeight.has(n.id) && (pWeight.get(n.id) ?? 0) > 0 ? pTarget.get(n.id)! / pWeight.get(n.id)! : n.pressure;
     n.pressure += (target - n.pressure) * Math.min(P_LAG * dt, 1);
     if (n.kind === 'sink') n.pressure *= 1 - SINK_BLEED * dt;
   }
