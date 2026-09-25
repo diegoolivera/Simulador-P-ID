@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import type { Alarm, AuditEvent, CommandPriority, Loop, Valve } from '../types/plant';
 import type { EsdLevel } from '../engine/esd';
+import type { LoopMode } from '../types/plant';
 import { canResetEsd, checkEsdEscalation } from '../engine/esd';
 import { PlantGraph } from '../engine/graph';
 import { createPhase1Graph } from '../data/phase1';
 import { commandValve as applyCommand, createValve, failPositionFromTag, setLock, valveTypeFromTag } from '../engine/valve';
 import { createLoop, PHASE1_LOOPS } from '../engine/loops';
-import { PHASE1_ALARM_RULES } from '../engine/alarms';
+import { acknowledgeAlarm, PHASE1_ALARM_RULES, shelveAlarm } from '../engine/alarms';
 import { stepPhysics, type PhysicsOptions } from '../engine/physics';
 import { useScenarioStore } from './scenarioStore';
 import { useEvalStore } from './evalStore';
@@ -29,6 +30,10 @@ type State = {
   setRunning: (running: boolean) => void;
   setScenarioOptions: (options: Partial<PhysicsOptions>) => void;
   lockValve: (tag: string, locked: boolean, reason: string) => boolean;
+  acknowledgeAlarm: (tag: string) => void;
+  shelveAlarm: (tag: string, duration: number) => void;
+  setLoopMode: (tag: string, mode: LoopMode) => void;
+  setLoopSetpoint: (tag: string, setpoint: number) => void;
   tick: (dt: number) => void;
 };
 
@@ -90,6 +95,34 @@ export const useSimulationStore = create<State>()((set, get) => ({
     if (audit.length) useEvalStore.getState().record(audit);
     set({ valves: new Map(valves) });
     return true;
+  },
+  acknowledgeAlarm: (tag) => {
+    const { activeAlarms } = get();
+    const alarm = activeAlarms.find((a) => a.tag === tag);
+    if (!alarm) return;
+    acknowledgeAlarm(alarm);
+    set({ activeAlarms: [...activeAlarms] });
+  },
+  shelveAlarm: (tag, duration) => {
+    const { activeAlarms, t } = get();
+    const alarm = activeAlarms.find((a) => a.tag === tag);
+    if (!alarm) return;
+    shelveAlarm(alarm, t, duration);
+    set({ activeAlarms: [...activeAlarms] });
+  },
+  setLoopMode: (tag, mode) => {
+    const { loops } = get();
+    const loop = loops.find((l) => l.tag === tag);
+    if (!loop) return;
+    loop.mode = mode;
+    set({ loops: [...loops] });
+  },
+  setLoopSetpoint: (tag, setpoint) => {
+    const { loops } = get();
+    const loop = loops.find((l) => l.tag === tag);
+    if (!loop) return;
+    loop.setpoint = setpoint;
+    set({ loops: [...loops] });
   },
   tick: (dt) => {
     const state = get();
