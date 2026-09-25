@@ -1,5 +1,6 @@
 import { commandValve } from './valve';
-import type { AuditEvent, Valve } from '../types/plant';
+import type { Alarm, AuditEvent, Valve } from '../types/plant';
+import type { PlantGraph } from './graph';
 
 export type EsdLevel = 0 | 1 | 2 | 3;
 
@@ -31,4 +32,16 @@ export function applyEsd(level: EsdLevel, valves: Map<string, Valve>, audit: Aud
       if (valve) commandValve(valve, action.position, 'esd', action.reason, audit, t);
     }
   }
+}
+
+export function canResetEsd(level: EsdLevel, alarms: Alarm[], checklistComplete: boolean): boolean {
+  if (level === 0) return false;
+  if (!checklistComplete) return false;
+  return !alarms.some((a) => a.priority === 'CRITICAL' && a.active);
+}
+
+export function checkEsdEscalation(graph: PlantGraph): EsdLevel | null {
+  const sb001 = graph.nodes.get('SB-001');
+  if (sb001 && sb001.pressure > 85 && sb001.liquidLevel > 9) return 2;
+  return null;
 }

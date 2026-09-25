@@ -1,7 +1,10 @@
-import type { AuditEvent, PlantEdge, Valve } from '../types/plant';
+import type { Alarm, AuditEvent, Loop, PlantEdge, Valve } from '../types/plant';
+import type { AlarmRule } from './alarms';
 import { PlantGraph } from './graph';
-import { applyEsd } from './esd';
+import { applyEsd, checkEsdEscalation, EsdLevel } from './esd';
 import { applyAirFailure, stepValveStrokes } from './valve';
+import { stepLoops } from './loops';
+import { evaluateAlarms } from './alarms';
 
 export interface PhysicsOptions {
   sourcePressure?: number;
@@ -12,6 +15,9 @@ export interface PhysicsOptions {
   instrumentAirOk?: boolean;
   slug?: { targetTag: string; liquidFlow: number };
   t?: number;
+  loops?: Loop[];
+  alarmRules?: AlarmRule[];
+  activeAlarms?: Alarm[];
 }
 
 const P_LAG = 0.5, P_SCALE = 0.5, SINK_BLEED = 0.1;
@@ -19,8 +25,16 @@ const clamp = (v: number, min = 0, max = 1) => Math.max(min, Math.min(max, v));
 
 export function stepPhysics(graph: PlantGraph, valves: Map<string, Valve>, dt: number, options: PhysicsOptions = {}): AuditEvent[] {
   const t = options.t ?? 0, audit: AuditEvent[] = [];
-  applyEsd((options.esdLevel ?? 0) as import('./esd').EsdLevel, valves, audit, t);
+  let esdLevel: EsdLevel = (options.esdLevel ?? 0) as EsdLevel;
+
+  applyEsd(esdLevel, valves, audit, t);
+  const escalation = checkEsdEscalation(graph);
+  if (escalation && escalation > esdLevel) {
+    esdLevel = escalation;
+    applyEsd(esdLevel, valves, audit, t);
+  }
   if (options.instrumentAirOk === false) applyAirFailure(valves.values(), audit, t);
+  if (options.loops) stepLoops(options.loops, graph, valves, esdLevel > 0, dt, audit, t);
   stepValveStrokes(valves.values(), dt);
 
   const cond = new Map<string, number>();
@@ -67,6 +81,12 @@ export function stepPhysics(graph: PlantGraph, valves: Map<string, Valve>, dt: n
     const slug = options.slug && options.slug.targetTag === n.tag ? options.slug.liquidFlow : 0;
     n.liquidLevel = clamp(n.liquidLevel + ((inFlow * liqFrac + slug) - outFlow * clamp(n.liquidLevel / n.volume)) * dt / n.volume, 0, n.volume);
     n.sandLevel = clamp(n.sandLevel + (inFlow * sandFrac - outFlow * clamp(n.sandLevel / n.volume)) * dt / n.volume, 0, n.volume);
+  }
+
+  if (options.loops && options.alarmRules && options.activeAlarms) {
+    const alarms = evaluateAlarms(graph, options.alarmRules, options.activeAlarms, t);
+    options.activeAlarms.length = 0;
+    options.activeAlarms.push(...alarms);
   }
 
   return audit;
