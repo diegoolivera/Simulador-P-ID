@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USP-02 · Tren de Separación de Entrada — Simulador SCADA</title>
+<style>
+:root{
+  --bg:#0a0e14; --panel:#111823; --panel2:#0d131c; --border:#25313f;
+  --txt:#c9d8e6; --dim:#5c7186; --cyan:#39d0ff; --green:#26e07f; --red:#ff4444;
+  --yellow:#ffcf3f; --orange:#ff9d3f; --purple:#b98bff; --white:#eef5fb;
+  --pipe-gas:#2f8fd6; --pipe-liq:#2fbf7a; --pipe-off:#3a4656;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+  font-family:'Segoe UI',Consolas,monospace;height:100%;}
+.digital{font-family:'Consolas','Courier New',monospace;letter-spacing:0.5px;}
+#app{display:flex;flex-direction:column;min-height:100vh;}
+header{background:linear-gradient(180deg,#141d2a,#0d141e);border-bottom:2px solid var(--border);
+  padding:10px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+header h1{font-size:16px;margin:0;color:var(--cyan);letter-spacing:1px;}
+header h1 span{color:var(--dim);font-weight:normal;font-size:12px;display:block;margin-top:2px;}
+.clock{font-size:12px;color:var(--dim);}
+.esd-banner{display:flex;align-items:center;gap:10px;padding:6px 14px;border-radius:4px;
+  font-weight:bold;font-size:13px;border:1px solid var(--border);}
+.esd-NORMAL{background:#0f2a1c;color:var(--green);border-color:#1c5a3a;}
+.esd-ESD3{background:#332305;color:var(--orange);border-color:#7a5410;animation:blink 1.4s infinite;}
+.esd-ESD2{background:#3a1505;color:var(--orange);border-color:#8a3a10;animation:blink 1s infinite;}
+.esd-ESD1{background:#3a0808;color:var(--red);border-color:#8a1414;animation:blink 0.6s infinite;}
+@keyframes blink{0%,49%{opacity:1;}50%,100%{opacity:0.45;}}
+main{display:flex;flex:1;min-height:0;flex-wrap:wrap;}
+#zoneA{flex:1 1 62%;min-width:520px;background:var(--panel2);border-right:2px solid var(--border);
+  padding:10px;overflow:auto;}
+#zoneB{flex:1 1 36%;min-width:360px;background:var(--panel);padding:10px;overflow:auto;
+  display:flex;flex-direction:column;gap:10px;}
+.card{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;}
+.card h2{margin:0 0 8px 0;font-size:12px;color:var(--cyan);text-transform:uppercase;letter-spacing:1px;
+  border-bottom:1px solid var(--border);padding-bottom:6px;}
+.hint{font-size:10px;color:var(--dim);}
+svg#pid{width:100%;height:auto;min-height:680px;}
+.eqlabel{fill:var(--txt);font-size:11px;font-weight:bold;}
+.taglabel{fill:var(--dim);font-size:9px;}
+.vessel-body{fill:#182233;stroke:#3a4a5c;stroke-width:2;}
+.liquid-fill{fill:var(--pipe-liq);opacity:0.55;}
+.sand-fill{fill:#8a6a3a;opacity:0.85;}
+.demister{stroke:#5c7186;stroke-width:1.4;fill:none;}
+.gauge-circle{fill:#0d1520;stroke:#3a4a5c;stroke-width:1.5;}
+.pipe{stroke-width:6;fill:none;stroke-linecap:round;}
+.pipe-gas-on{stroke:var(--pipe-gas);}
+.pipe-liq-on{stroke:var(--pipe-liq);}
+.pipe-off{stroke:var(--pipe-off);}
+.pipe-flow{stroke-dasharray:10 8;animation:flowdash 0.7s linear infinite;}
+@keyframes flowdash{to{stroke-dashoffset:-36;}}
+.valve{cursor:pointer;}
+.valve-body{stroke:#0a0e14;stroke-width:1.5;}
+.valve-open{fill:var(--green);}
+.valve-closed{fill:var(--red);}
+.valve-partial{fill:var(--yellow);}
+.valve-lbl{fill:var(--white);font-size:9px;font-weight:bold;text-anchor:middle;pointer-events:none;}
+.valve:hover .valve-body{stroke:var(--cyan);stroke-width:2.5;}
+.valve.needed .valve-body{stroke:var(--cyan);stroke-width:3;stroke-dasharray:2 2;}
+.instr-bubble{fill:#0d1520;stroke:#4a5a6c;stroke-width:1.4;}
+.instr-txt{fill:var(--cyan);font-size:8px;text-anchor:middle;font-family:Consolas,monospace;}
+.flame{fill:var(--orange);opacity:0;transition:opacity .3s;}
+.flame.lit{opacity:1;animation:flick 0.35s infinite alternate;}
+@keyframes flick{0%{transform:scaleY(1) scaleX(1);}100%{transform:scaleY(1.18) scaleX(0.9);}}
+
+.indic-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.indic{background:#0a1119;border:1px solid var(--border);border-radius:4px;padding:6px 8px;}
+.indic .lbl{font-size:9px;color:var(--dim);text-transform:uppercase;}
+.indic .val{font-size:18px;color:var(--cyan);font-weight:bold;}
+.indic .val.warn{color:var(--yellow);}
+.indic .val.alarm{color:var(--red);}
+.indic .unit{font-size:9px;color:var(--dim);}
+.bar-track{height:6px;background:#1a2432;border-radius:3px;margin-top:4px;overflow:hidden;}
+.bar-fill{height:100%;background:var(--cyan);transition:width .3s;}
+.bar-fill.warn{background:var(--yellow);}
+.bar-fill.alarm{background:var(--red);}
+
+.alarm-row{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;
+  border-radius:3px;font-size:11px;margin-bottom:3px;background:#0a1119;border:1px solid var(--border);}
+.alarm-row.active{background:#2a1010;border-color:var(--red);animation:blink 1s infinite;}
+.alarm-row.norm{color:var(--dim);}
+.tag-chip{font-size:9px;padding:1px 5px;border-radius:3px;background:#1a2432;color:var(--dim);}
+
+.loop{border:1px solid var(--border);border-radius:4px;padding:6px 8px;margin-bottom:6px;background:#0a1119;}
+.loop .top{display:flex;justify-content:space-between;align-items:center;}
+.loop .name{font-size:11px;font-weight:bold;color:var(--white);}
+.mode-toggle{display:flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+.mode-toggle button{background:#141d2a;color:var(--dim);border:none;font-size:9px;padding:3px 8px;cursor:pointer;}
+.mode-toggle button.active{background:var(--cyan);color:#04121a;font-weight:bold;}
+.loop input[type=range]{width:100%;margin-top:4px;}
+.loop .readout{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:2px;}
+
+.btn{background:#152234;border:1px solid var(--border);color:var(--txt);padding:7px 10px;border-radius:4px;
+  cursor:pointer;font-size:11px;text-align:left;transition:.15s;}
+.btn:hover{border-color:var(--cyan);color:var(--cyan);}
+.btn.danger:hover{border-color:var(--red);color:var(--red);}
+.btn.big{font-weight:bold;padding:10px;}
+.scenario-grid{display:flex;flex-direction:column;gap:6px;}
+
+#loto-panel{display:none;}
+#loto-panel.show{display:block;}
+.loto-step{border:1px solid var(--border);border-radius:4px;padding:8px;margin-bottom:6px;background:#0a1119;}
+.loto-step.done{border-color:var(--green);}
+.loto-step.current{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan) inset;}
+.loto-step .stitle{font-size:11px;font-weight:bold;}
+.loto-step .sdesc{font-size:10px;color:var(--dim);margin-top:3px;}
+.check{color:var(--green);font-weight:bold;}
+
+footer{padding:6px 14px;font-size:9px;color:var(--dim);border-top:1px solid var(--border);background:var(--panel2);}
+.tooltip{position:fixed;background:#0a1119;border:1px solid var(--cyan);color:var(--white);font-size:10px;
+  padding:6px 8px;border-radius:4px;pointer-events:none;z-index:99;max-width:230px;white-space:pre-line;display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div>
+    <h1>USP-02 · TREN DE SEPARACIÓN DE ENTRADA<span>SB-009 Desarenador → SB-001 Slug Catcher → SB-004 Scrubber — Planta de Tratamiento de Gas</span></h1>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="clock digital">t = <span id="simTime">0000</span> s</div>
+    <div class="esd-banner esd-NORMAL" id="esdBanner">MATRIZ ESD: NORMAL</div>
+  </div>
+</header>
+<main>
+  <section id="zoneA">
+    <svg id="pid" viewBox="0 0 1220 900" xmlns="http://www.w3.org/2000/svg"></svg>
+  </section>
+  <section id="zoneB">
+
+    <div class="card">
+      <h2>Indicadores Digitales</h2>
+      <div class="indic-grid" id="indicGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Panel de Alarmas</h2>
+      <div id="alarmList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Lazos de Control</h2>
+      <div id="loopsPanel"></div>
+    </div>
+
+    <div class="card">
+      <h2>Escenarios de Simulación</h2>
+      <div class="scenario-grid">
+        <button class="btn big" id="btnScenA">▲ A · Inyección de Slug Masivo de Líquido</button>
+        <button class="btn big" id="btnScenB">▲ B · Saturación de Arena en SB-009</button>
+        <button class="btn big danger" id="btnScenC">⛔ C · Disparo ESD1 (Blowdown Total)</button>
+        <button class="btn big" id="btnScenD">🔧 D · Procedimiento LOTO / Limpieza (manual)</button>
+        <button class="btn" id="btnReset">↺ Reset simulación</button>
+      </div>
+    </div>
+
+    <div class="card" id="loto-panel">
+      <h2>Procedimiento LOTO — <span id="lotoEquipName">-</span></h2>
+      <div class="hint" style="margin-bottom:6px;">Operá vos mismo las válvulas resaltadas con borde punteado celeste en el P&ID, en el orden indicado. El paso no avanza hasta que la condición se cumpla.</div>
+      <div id="lotoSteps"></div>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button class="btn" id="lotoPrev">◀ Anterior</button>
+        <button class="btn" id="lotoNext">Verificar y avanzar ▶</button>
+        <button class="btn danger" id="lotoClose">Cerrar</button>
+      </div>
+    </div>
+
+  </section>
+</main>
+<footer>Simulador educativo con física simplificada de balance de masa/presión. No apto para diseño de ingeniería real. Click en válvulas para operar. Doble-click en válvulas de control (verde/amarillo con %) para ajustar apertura manual.</footer>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+/* =========================================================
+   ESTADO GLOBAL DE SIMULACIÓN
+   ========================================================= */
+const state = {
+  t:0,
+  esd:'NORMAL', // NORMAL, ESD3, ESD2, ESD1
+  manifold:{pressure:70, flow:520},
+  valves:{
+    vin009:   {open:true,  pct:100, type:'onoff', label:'V-IN-009'},
+    vout009:  {open:true,  pct:100, type:'onoff', label:'V-OUT-009'},
+    vbp009:   {open:false, pct:0,   type:'onoff', label:'BYP-009'},
+    vdr009:   {open:false, pct:0,   type:'onoff', label:'DR-009 Purga'},
+    n2_009:   {open:false, pct:0,   type:'onoff', label:'N2-009'},
+
+    vin001:   {open:true,  pct:100, type:'onoff', label:'V-IN-001'},
+    vout001:  {open:true,  pct:100, type:'onoff', label:'V-OUT-001'},
+    vbp001:   {open:false, pct:0,   type:'onoff', label:'BYP-001'},
+    ft101_dummy:null,
+    pv101:    {open:true,  pct:52,  type:'ctrl',  label:'PV-101'},
+    bdv001a:  {open:false, pct:0,   type:'ctrl',  label:'BDV-001A'},
+    pv001ad:  {open:false, pct:0,   type:'onoff', label:'PSV-001AD/BD'},
+    lv001ba:  {open:true,  pct:30,  type:'ctrl',  label:'LV-001BA'},
+    sdv001b:  {open:true,  pct:100, type:'onoff', label:'SDV-001B'},
+    n2_001:   {open:false, pct:0,   type:'onoff', label:'N2-001'},
+
+    vin004:   {open:true,  pct:100, type:'onoff', label:'V-IN-004'},
+    sdv004out:{open:true,  pct:100, type:'onoff', label:'SDV-OUT-004'},
+    vbp004:   {open:false, pct:0,   type:'onoff', label:'BYP-004'},
+    vt004:    {open:false, pct:0,   type:'ctrl',  label:'VT-004 Venteo'},
+    lv004:    {open:true,  pct:22,  type:'ctrl',  label:'LV-004'},
+    n2_004:   {open:false, pct:0,   type:'onoff', label:'N2-004'},
+  },
+  sb009:{ pressure:70, sandLevel:2, dP:0.1, efficiency:99 },
+  sb001:{ pressure:70, gasFlow:500, liquidLevel:28, slugTimer:0, slugMagnitude:0 },
+  sb004:{ pressure:69, liquidLevel:18, demisterDP:0.4, fouling:2, flowThrough:480 },
+  flow:{}, // computed flags each tick
+  loops:{
+    pic101:  {mode:'auto', sp:70, pv:70, out:52, valve:'pv101', kp:6},
+    lic001ba:{mode:'auto', sp:30, pv:28, out:30, valve:'lv001ba', kp:2.2},
+    lic004:  {mode:'auto', sp:20, pv:18, out:22, valve:'lv004', kp:2.2},
+  },
+  alarms:{},
+  flags:{ scenarioB_active:false, lotoActive:null, lotoStep:0, running:true },
+};
+delete state.valves.ft101_dummy;
+
+const THRESH = {
+  pt009_pah:75, pt009_pahh:80,
+  dp009_pah:2.0, dp009_pahh:3.5,
+  pt001_pal:55, pt001_pah:76, pt001_pahh:83,
+  lt001_lal:8,  lt001_lah:70, lt001_lahh:85,
+  dp004_pah:2.5, dp004_pahh:4.5,
+  lt004_lal:6,  lt004_lah:70, lt004_lahh:85,
+};
+
+/* =========================================================
+   CONSTRUCCIÓN DEL P&ID (SVG)
+   ========================================================= */
+const svg = document.getElementById('pid');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){
+  const e = document.createElementNS(NS,tag);
+  for(const k in attrs) e.setAttribute(k,attrs[k]);
+  (parent||svg).appendChild(e);
+  return e;
+}
+
+const pipes = {};
+function pipe(id, d, kind){
+  const p = el('path',{d, class:'pipe pipe-off', id:'pipe_'+id},svg);
+  pipes[id] = {el:p, kind};
+  return p;
+}
+
+const valveShapes = {};
+function drawValve(id, x, y, orientation){
+  orientation = orientation || 'h';
+  const v = state.valves[id];
+  const g = el('g',{class:'valve', id:'valve_'+id},svg);
+  let pts;
+  if(orientation==='h'){
+    pts = `${x-9},${y-9} ${x+9},${y-9} ${x-9},${y+9} ${x+9},${y+9}`;
+  } else {
+    pts = `${x-9},${y-9} ${x-9},${y+9} ${x+9},${y-9} ${x+9},${y+9}`;
+  }
+  el('polygon',{points:pts, class:'valve-body valve-closed'},g);
+  el('text',{x:x, y:y-14, class:'valve-lbl'},g).textContent=v.label;
+  const pctTxt = el('text',{x:x, y:y+24, class:'valve-lbl', style:'fill:#8fb0c8;font-size:8px;'},g);
+  valveShapes[id] = {g, poly:g.querySelector('polygon'), pctTxt, x, y};
+  g.addEventListener('click', ()=>toggleValve(id));
+  g.addEventListener('dblclick', (e)=>{ e.preventDefault(); askPercent(id); });
+  g.addEventListener('mousemove', (e)=>showTip(e, tipFor(id)));
+  g.addEventListener('mouseleave', hideTip);
+  return g;
+}
+
+const instrVals = {};
+function instrBubble(id, x, y, label){
+  const g = el('g',{id:'instr_'+id},svg);
+  el('circle',{cx:x,cy:y,r:15,class:'instr-bubble'},g);
+  el('text',{x:x,y:y-2,class:'instr-txt'},g).textContent=label;
+  const val = el('text',{x:x,y:y+9,class:'instr-txt',id:'instrval_'+id},g);
+  instrVals[id]=val;
+}
+
+function vesselRect(x,y,w,h){
+  el('rect',{x,y,width:w,height:h,rx:12,class:'vessel-body'},svg);
+}
+
+/* =========================================================
+   LAYOUT — arquitectura corregida en serie real
+   Backbone de gas: Manifold -> SB-009(costado) -> V-OUT-009 -> costado SB-001
+   -> tope SB-001 -> FT-101 -> PV-101 -> costado SB-004 -> tope SB-004 -> SDV-OUT-004 -> A COMPRESIÓN
+   ========================================================= */
+
+/* --- Etiquetas de equipos --- */
+el('text',{x:60,y:40,class:'eqlabel'},svg).textContent='MANIFOLD 70 kg/cm²';
+el('text',{x:200,y:170,class:'eqlabel'},svg).textContent='SB-009';
+el('text',{x:200,y:184,class:'taglabel'},svg).textContent='DESARENADOR';
+el('text',{x:485,y:240,class:'eqlabel'},svg).textContent='SB-001';
+el('text',{x:485,y:254,class:'taglabel'},svg).textContent='SLUG CATCHER';
+el('text',{x:850,y:240,class:'eqlabel'},svg).textContent='SB-004';
+el('text',{x:850,y:254,class:'taglabel'},svg).textContent='SCRUBBER';
+el('text',{x:1030,y:70,class:'eqlabel',style:'fill:#39d0ff'},svg).textContent='A COMPRESIÓN';
+el('text',{x:1150,y:645,class:'eqlabel'},svg).textContent='ANTORCHA';
+el('text',{x:120,y:800,class:'eqlabel'},svg).textContent='CABEZAL DE DRENAJE / VENT';
+
+/* ---------------- SB-009 (x:190-280, y:190-450) ---------------- */
+vesselRect(190,190,90,260);
+const sand009 = el('polygon',{points:'190,450 280,450 280,450 190,450', class:'sand-fill', id:'sand009'},svg);
+instrBubble('pt009',300,220,'PT-009');
+instrBubble('dp009',300,260,'ΔP-009');
+
+pipe('manifold_in','M20,300 L110,300','gas');
+pipe('toValve_in009','M110,300 L150,300','gas');
+drawValve('vin009',150,300);
+pipe('in009_to_vessel','M150,300 L190,280','gas');
+
+pipe('vessel_to_out009','M280,300 L330,300','gas');
+drawValve('vout009',330,300);
+pipe('out009_to_join','M330,300 L390,300','gas');
+
+/* BYP-009: entrada de V-IN-009 -> salida de V-OUT-009 */
+pipe('byp009_up','M110,300 L110,120 L390,120 L390,300','gas');
+drawValve('vbp009',250,120);
+
+/* Purga inferior arena SB-009 */
+pipe('drain009','M235,450 L235,560 L150,560','liq');
+drawValve('vdr009',235,510,'v');
+pipe('n2line009','M150,560 L150,610','gas');
+drawValve('n2_009',150,610,'v');
+
+/* ---------------- Tramo de unión SB-009 -> SB-001 ---------------- */
+pipe('join_to_sb1','M390,300 L410,340','gas');
+
+/* ---------------- SB-001 (x:460-630, y:260-480) ---------------- */
+vesselRect(460,260,170,220);
+const liq001 = el('rect',{x:464,y:475,width:162,height:0,class:'liquid-fill',id:'liq001'},svg);
+
+/* Entrada por el costado, con BYP-001 y V-IN-001 antes del ingreso */
+pipe('preIn001','M410,340 L430,340','gas');
+drawValve('vin001',430,340);
+pipe('in001_to_vessel','M430,340 L460,340','gas');
+
+/* BYP-001: entrada de SB-001 -> entrada de SB-004 */
+pipe('byp001_line','M410,340 L410,430 L800,430 L800,340','gas');
+drawValve('vbp001',600,430);
+
+/* Salida por el tope: vessel -> V-OUT-001 -> FT-101 -> PV-101 -> costado SB-004 */
+pipe('sb001_top_out','M545,260 L545,215','gas');
+drawValve('vout001',545,215);
+pipe('vout001_to_ft','M545,215 L595,215','gas');
+instrBubble('ft101',612,215,'FT-101');
+pipe('ft_to_pv101','M629,215 L680,215','gas');
+drawValve('pv101',680,215);
+pipe('pv101_to_join004','M680,215 L800,215 L800,340','gas');
+
+instrBubble('pt101',660,300,'PT-101');
+instrBubble('lt001',660,420,'LT-001');
+
+/* BDV-001A: rama exclusiva desde el TOPE de SB-001 -> colector inferior de ANTORCHA */
+pipe('bdv_from_top','M595,260 L595,150','gas');
+drawValve('bdv001a',595,150,'v');
+pipe('bdv_to_flare','M595,150 L1090,150 L1090,650','gas');
+
+/* PSV-001AD/BD alivio -> también a antorcha */
+pipe('psv_from_vessel','M480,260 L480,190','gas');
+drawValve('pv001ad',480,190,'v');
+pipe('psv_to_header','M480,190 L595,190 L595,150','gas');
+
+/* Línea de líquido: LT/LIC-001BA / FIC-001B -> LV-001BA -> SDV-001B -> drenaje */
+pipe('liq001_out1','M545,480 L545,540','liq');
+drawValve('lv001ba',545,540,'v');
+pipe('liq001_out2','M545,540 L545,600','liq');
+drawValve('sdv001b',545,600,'v');
+pipe('liq001_out3','M545,600 L235,600','liq');
+
+/* N2 SB-001 */
+pipe('n2line001','M460,440 L400,440 L400,610','gas');
+drawValve('n2_001',400,610,'v');
+
+/* ---------------- SB-004 (x:830-970, y:260-480) ---------------- */
+vesselRect(830,260,140,220);
+el('path',{d:'M842,300 L860,310 L842,320 L860,330 L842,340 M910,300 L892,310 L910,320 L892,330 L910,340',class:'demister'},svg);
+const liq004 = el('rect',{x:834,y:475,width:132,height:0,class:'liquid-fill',id:'liq004'},svg);
+
+/* entrada por el costado con BYP-004/V-IN-004 */
+pipe('join004_to_valve','M800,340 L815,340','gas');
+drawValve('vin004',815,340);
+pipe('vin004_to_vessel','M815,340 L830,340','gas');
+
+/* salida por el tope -> SDV-OUT-004 -> A COMPRESIÓN (única línea con ese destino) */
+pipe('sb004_top_out','M900,260 L900,180','gas');
+drawValve('sdv004out',900,180,'v');
+pipe('sdv004_to_final','M900,180 L1000,180','gas');
+
+/* BYP-004: entrada de SB-004 -> línea final a Compresión (aguas abajo de SDV-OUT-004) */
+pipe('byp004_line','M800,340 L740,340 L740,80 L1000,80 L1000,180','gas');
+drawValve('vbp004',740,210);
+
+pipe('final_to_compression','M1000,180 L1000,70 L1120,70','gas');
+
+/* venteo VT-004 -> antorcha */
+pipe('vt004_from_top','M960,260 L960,150 L1090,150','gas');
+drawValve('vt004',960,150,'v');
+
+instrBubble('dpt004',990,300,'ΔP-004');
+instrBubble('lt004',990,420,'LT-004');
+instrBubble('pt004',990,360,'PT-004');
+
+/* Línea de líquido SB-004 */
+pipe('liq004_out1','M900,480 L900,540','liq');
+drawValve('lv004',900,540,'v');
+pipe('liq004_out2','M900,540 L900,600 L545,600','liq');
+
+/* N2 SB-004 */
+pipe('n2line004','M830,440 L770,440 L770,610 L400,610','gas');
+drawValve('n2_004',770,610,'v');
+
+/* ---------------- Antorcha ---------------- */
+el('rect',{x:1082,y:650,width:16,height:130,fill:'#2a3444',stroke:'#4a5a6c'},svg);
+const flame = el('path',{d:'M1090,640 C1078,620 1082,600 1090,585 C1098,600 1102,620 1090,640 Z',class:'flame',id:'flame'},svg);
+
+/* Drenaje cabezal visual */
+el('rect',{x:60,y:770,width:230,height:36,rx:6,fill:'#0d1520',stroke:'#3a4a5c'},svg);
+el('text',{x:175,y:792,class:'taglabel',style:'text-anchor:middle'},svg).textContent='Vent atmosférico / drenaje a pileta API';
+
+/* Leyenda */
+el('text',{x:20,y:870,class:'taglabel'},svg).textContent='● Verde = abierta   ● Rojo = cerrada   ● Amarillo = parcial   ┄ animado = flujo activo   ⬚ celeste punteado = válvula a operar en el paso LOTO actual';
+
+/* =========================================================
+   INTERACCIÓN DE VÁLVULAS
+   ========================================================= */
+function toggleValve(id){
+  const v = state.valves[id];
+  if(!v) return;
+  v.open = !v.open;
+  v.pct = v.open ? (v.type==='ctrl'? Math.max(v.pct,10) : 100) : 0;
+  if(v.type==='ctrl'){
+    for(const lk in state.loops){ if(state.loops[lk].valve===id) state.loops[lk].mode='manual'; }
+    renderLoops();
+  }
+}
+function askPercent(id){
+  const v = state.valves[id];
+  if(!v || v.type!=='ctrl'){ return; }
+  const val = prompt('Apertura manual de '+v.label+' (0-100%):', v.pct);
+  if(val===null) return;
+  const n = Math.max(0,Math.min(100,parseFloat(val)||0));
+  v.pct = n; v.open = n>0;
+  for(const lk in state.loops){ if(state.loops[lk].valve===id) state.loops[lk].mode='manual'; }
+  renderLoops();
+}
+
+/* =========================================================
+   TOOLTIPS
+   ========================================================= */
+const tooltip = document.getElementById('tooltip');
+function tipFor(id){
+  const v = state.valves[id];
+  if(!v) return '';
+  return `${v.label}\nEstado: ${v.open? 'ABIERTA':'CERRADA'} (${Math.round(v.pct)}%)\nTipo: ${v.type==='ctrl'?'Control (doble-click = %)':'Manual todo/nada'}`;
+}
+function showTip(e,text){
+  tooltip.style.display='block';
+  tooltip.style.left=(e.clientX+14)+'px';
+  tooltip.style.top=(e.clientY+10)+'px';
+  tooltip.innerText=text;
+}
+function hideTip(){ tooltip.style.display='none'; }
+function flashMsg(msg){
+  tooltip.style.display='block';
+  tooltip.style.left='50%'; tooltip.style.top='50%';
+  tooltip.innerText=msg;
+  setTimeout(hideTip,1800);
+}
+
+/* =========================================================
+   FÍSICA SIMPLIFICADA (tick ~1 "seg. sim" cada 400ms)
+   ========================================================= */
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+function stepPhysics(dt){
+  const V = state.valves;
+  const esd = state.esd;
+
+  /* --- Forzado por ESD --- */
+  if(esd==='ESD1'){
+    V.vin009.open=false; V.vin009.pct=0;
+    V.vin001.open=false; V.vin001.pct=0;
+    V.vout001.open=false; V.vout001.pct=0;
+    V.vin004.open=false; V.vin004.pct=0;
+    V.bdv001a.open=true; V.bdv001a.pct=100;
+    V.vt004.open=true; V.vt004.pct=100;
+    V.sdv001b.open=false; V.sdv001b.pct=0;
+    V.sdv004out.open=false; V.sdv004out.pct=0;
+  } else if(esd==='ESD2'){
+    V.vin009.open=false; V.vin009.pct=0;
+    V.sdv001b.open=false; V.sdv001b.pct=0;
+    V.sdv004out.open=false; V.sdv004out.pct=0;
+  } else if(esd==='ESD3'){
+    V.sdv004out.open=false; V.sdv004out.pct=0;
+    state.loops.lic001ba.mode='manual';
+    V.lv001ba.pct=100; V.lv001ba.open=true;
+  }
+
+  /* --- Flags de flujo (topología en serie real) --- */
+  const F = state.flow;
+  F.sb009_vessel = V.vin009.open && V.vout009.open;
+  F.sb009_bypass = V.vbp009.open;
+  const gasAtJ009 = F.sb009_vessel || F.sb009_bypass;
+
+  F.sb001_vessel = gasAtJ009 && V.vin001.open && V.vout001.open && V.pv101.open;
+  F.sb001_bypass = gasAtJ009 && V.vbp001.open;
+  const gasAtJ004 = F.sb001_vessel || F.sb001_bypass;
+
+  F.sb004_vessel = gasAtJ004 && V.vin004.open && V.sdv004out.open;
+  F.sb004_bypass = gasAtJ004 && V.vbp004.open;
+  F.toCompression = F.sb004_vessel || F.sb004_bypass;
+
+  F.bdv = V.bdv001a.open;
+  F.vt004 = V.vt004.open;
+
+  /* --- SB-009 desarenador --- */
+  const sb9 = state.sb009;
+  let sandRate = F.sb009_vessel ? 0.06*(V.vin009.pct/100)*(state.flags.scenarioB_active?9:1) : 0;
+  if(V.vdr009.open) sandRate -= 3.2*(V.vdr009.pct/100);
+  sb9.sandLevel = clamp(sb9.sandLevel + sandRate*dt, 0, 100);
+  sb9.efficiency = clamp(100 - sb9.sandLevel*0.55, 35, 100);
+  sb9.dP = clamp(0.05 + sb9.sandLevel*0.045*(F.sb009_vessel?1:0.2), 0, 6);
+
+  let target9;
+  if(V.vdr009.open) target9 = 0;
+  else if(V.vin009.open || V.vout009.open) target9 = state.manifold.pressure - sb9.dP;
+  else target9 = sb9.pressure;
+  sb9.pressure += (target9 - sb9.pressure)*clamp(0.18*dt,0,1);
+  sb9.pressure = clamp(sb9.pressure,0,90);
+
+  /* --- SB-001 slug catcher --- */
+  const sb1 = state.sb001;
+  let liquidIn = (V.vin001.open ? (4 + Math.random()*1.5) : 0);
+  if(sb1.slugTimer>0){
+    if(V.vin001.open) liquidIn += sb1.slugMagnitude;
+    sb1.slugTimer -= dt;
+  }
+  const lvOutFrac = (V.lv001ba.open? V.lv001ba.pct/100:0) * (V.sdv001b.open?1:0);
+  const liquidOut = lvOutFrac*22;
+  sb1.liquidLevel = clamp(sb1.liquidLevel + (liquidIn-liquidOut)*dt*0.9, 0, 105);
+
+  const qAfter009 = state.manifold.flow*((F.sb009_vessel?V.vout009.pct/100:0)+(F.sb009_bypass?V.vbp009.pct/100:0));
+  sb1.gasFlow = F.sb001_vessel ? qAfter009*(V.pv101.pct/100) : 0;
+
+  if(V.bdv001a.open){
+    sb1.pressure -= (sb1.pressure*0.35*V.bdv001a.pct/100)*dt;
+  } else if(V.vin001.open || V.vout001.open){
+    const target1 = clamp(sb9.pressure - 0.6, 0, 92);
+    sb1.pressure += (target1 - sb1.pressure)*clamp(0.2*dt,0,1);
+  }
+  sb1.pressure = clamp(sb1.pressure,0,95);
+
+  /* --- SB-004 scrubber --- */
+  const sb4 = state.sb004;
+  const qAfter001 = qAfter009*((F.sb001_vessel?V.pv101.pct/100:0)) + qAfter009*(F.sb001_bypass?V.vbp001.pct/100:0);
+  sb4.flowThrough = F.sb004_vessel ? qAfter001 : 0;
+  let foulRate = 0.015*(sb4.flowThrough/480);
+  sb4.fouling = clamp(sb4.fouling + foulRate*dt, 0, 100);
+  sb4.demisterDP = clamp(0.3 + sb4.fouling*0.045*(sb4.flowThrough>10?1:0.2), 0, 7);
+
+  let liq4In = (V.vin004.open ? (1.6 + sb4.flowThrough*0.002) : 0);
+  const lv4Frac = (V.lv004.open? V.lv004.pct/100:0);
+  const liq4Out = lv4Frac*14;
+  sb4.liquidLevel = clamp(sb4.liquidLevel + (liq4In-liq4Out)*dt*0.9,0,105);
+
+  if(V.vt004.open){
+    sb4.pressure -= (sb4.pressure*0.35*V.vt004.pct/100)*dt;
+  } else if(V.vin004.open || V.sdv004out.open){
+    const target4 = clamp(sb1.pressure - sb4.demisterDP*0.6,0,90);
+    sb4.pressure += (target4-sb4.pressure)*clamp(0.2*dt,0,1);
+  }
+  sb4.pressure = clamp(sb4.pressure,0,90);
+
+  /* --- Lazos (Auto/Manual) --- */
+  for(const key in state.loops){
+    const L = state.loops[key];
+    let pv;
+    if(key==='pic101') pv = sb1.pressure;
+    if(key==='lic001ba') pv = sb1.liquidLevel;
+    if(key==='lic004') pv = sb4.liquidLevel;
+    L.pv = pv;
+    if(L.mode==='auto' && state.esd==='NORMAL'){
+      const err = pv - L.sp;
+      let out = clamp(L.out + err*L.kp*0.06*dt,0,100);
+      L.out = out;
+      state.valves[L.valve].pct = out;
+      state.valves[L.valve].open = out>1;
+    } else {
+      L.out = state.valves[L.valve].pct;
+    }
+  }
+
+  /* --- Alarmas --- */
+  const A = state.alarms;
+  A.pt009_pah = sb9.pressure>THRESH.pt009_pah;
+  A.pt009_pahh = sb9.pressure>THRESH.pt009_pahh;
+  A.dp009_pah = sb9.dP>THRESH.dp009_pah;
+  A.dp009_pahh = sb9.dP>THRESH.dp009_pahh;
+  A.pt001_pal = sb1.pressure<THRESH.pt001_pal && sb1.pressure>2;
+  A.pt001_pah = sb1.pressure>THRESH.pt001_pah;
+  A.pt001_pahh = sb1.pressure>THRESH.pt001_pahh;
+  A.lt001_lal = sb1.liquidLevel<THRESH.lt001_lal;
+  A.lt001_lah = sb1.liquidLevel>THRESH.lt001_lah;
+  A.lt001_lahh = sb1.liquidLevel>THRESH.lt001_lahh;
+  A.dp004_pah = sb4.demisterDP>THRESH.dp004_pah;
+  A.dp004_pahh = sb4.demisterDP>THRESH.dp004_pahh;
+  A.lt004_lal = sb4.liquidLevel<THRESH.lt004_lal;
+  A.lt004_lah = sb4.liquidLevel>THRESH.lt004_lah;
+  A.lt004_lahh = sb4.liquidLevel>THRESH.lt004_lahh;
+
+  if(state.esd==='NORMAL'){
+    if(A.lt001_lahh || A.pt001_pahh){ setESD('ESD3','Disparo automático: nivel/presión HIHI en SB-001'); }
+  }
+  if(state.esd==='ESD3'){
+    if(A.pt001_pahh && A.lt001_lahh){ setESD('ESD2','Escalado automático: condición doble HIHI persistente'); }
+  }
+
+  state.t += dt;
+}
+
+function setESD(level, reason){
+  if(state.esd===level) return;
+  state.esd = level;
+  document.getElementById('esdBanner').className='esd-banner esd-'+level;
+  document.getElementById('esdBanner').textContent='MATRIZ ESD: '+level+(reason? ' — '+reason:'');
+}
+function resetESD(){ setESD('NORMAL','Reset manual de operador'); }
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function pctColor(v){
+  if(v.open && v.pct>=99) return 'valve-open';
+  if(!v.open || v.pct<=0) return 'valve-closed';
+  return 'valve-partial';
+}
+function renderValves(){
+  const highlighted = currentLotoValveIds();
+  for(const id in valveShapes){
+    const v = state.valves[id];
+    const shp = valveShapes[id];
+    shp.poly.setAttribute('class','valve-body '+pctColor(v));
+    shp.pctTxt.textContent = v.type==='ctrl' ? Math.round(v.pct)+'%' : (v.open?'ABIERTA':'CERRADA');
+    shp.g.classList.toggle('needed', highlighted.includes(id));
+  }
+}
+function setPipe(id, active, kind){
+  const p = pipes[id]; if(!p) return;
+  let cls = 'pipe ';
+  cls += active ? (kind==='liq'?'pipe-liq-on':'pipe-gas-on') : 'pipe-off';
+  if(active) cls += ' pipe-flow';
+  p.el.setAttribute('class',cls);
+}
+function renderPipes(){
+  const V = state.valves, F = state.flow;
+
+  setPipe('manifold_in', true, 'gas');
+  setPipe('toValve_in009', V.vin009.open, 'gas');
+  setPipe('in009_to_vessel', V.vin009.open, 'gas');
+  setPipe('vessel_to_out009', F.sb009_vessel, 'gas');
+  setPipe('out009_to_join', F.sb009_vessel, 'gas');
+  setPipe('byp009_up', F.sb009_bypass, 'gas');
+  setPipe('drain009', V.vdr009.open, 'liq');
+  setPipe('n2line009', V.n2_009.open, 'gas');
+  setPipe('join_to_sb1', F.sb009_vessel||F.sb009_bypass, 'gas');
+
+  setPipe('preIn001', V.vin001.open, 'gas');
+  setPipe('in001_to_vessel', V.vin001.open, 'gas');
+  setPipe('byp001_line', F.sb001_bypass, 'gas');
+  setPipe('sb001_top_out', F.sb001_vessel, 'gas');
+  setPipe('vout001_to_ft', F.sb001_vessel, 'gas');
+  setPipe('ft_to_pv101', F.sb001_vessel, 'gas');
+  setPipe('pv101_to_join004', F.sb001_vessel, 'gas');
+  setPipe('bdv_from_top', V.bdv001a.open, 'gas');
+  setPipe('bdv_to_flare', V.bdv001a.open || V.vt004.open || V.pv001ad.open, 'gas');
+  setPipe('psv_from_vessel', V.pv001ad.open, 'gas');
+  setPipe('psv_to_header', V.pv001ad.open, 'gas');
+  setPipe('liq001_out1', V.lv001ba.open, 'liq');
+  setPipe('liq001_out2', V.lv001ba.open && V.sdv001b.open, 'liq');
+  setPipe('liq001_out3', V.lv001ba.open && V.sdv001b.open, 'liq');
+  setPipe('n2line001', V.n2_001.open, 'gas');
+
+  setPipe('join004_to_valve', F.sb001_vessel||F.sb001_bypass, 'gas');
+  setPipe('vin004_to_vessel', V.vin004.open, 'gas');
+  setPipe('sb004_top_out', F.sb004_vessel, 'gas');
+  setPipe('sdv004_to_final', F.sb004_vessel, 'gas');
+  setPipe('byp004_line', F.sb004_bypass, 'gas');
+  setPipe('final_to_compression', F.toCompression, 'gas');
+  setPipe('vt004_from_top', V.vt004.open, 'gas');
+  setPipe('liq004_out1', V.lv004.open, 'liq');
+  setPipe('liq004_out2', V.lv004.open, 'liq');
+  setPipe('n2line004', V.n2_004.open, 'gas');
+
+  flame.classList.toggle('lit', (V.bdv001a.open && V.bdv001a.pct>0) || (V.vt004.open && V.vt004.pct>0));
+}
+function renderVessels(){
+  const sb1 = state.sb001, sb4 = state.sb004, sb9 = state.sb009;
+  const h1 = clamp(sb1.liquidLevel,0,100)/100*205;
+  liq001.setAttribute('y', 475-h1); liq001.setAttribute('height', h1);
+  const h4 = clamp(sb4.liquidLevel,0,100)/100*205;
+  liq004.setAttribute('y', 475-h4); liq004.setAttribute('height', h4);
+  const sandH = clamp(sb9.sandLevel,0,100)/100*70;
+  sand009.setAttribute('points', `190,${450-sandH} 280,${450-sandH} 280,450 190,450`);
+
+  instrVals.pt009.textContent = sb9.pressure.toFixed(0);
+  instrVals.dp009.textContent = sb9.dP.toFixed(1);
+  instrVals.pt101.textContent = sb1.pressure.toFixed(0);
+  instrVals.ft101.textContent = sb1.gasFlow.toFixed(0);
+  instrVals.lt001.textContent = sb1.liquidLevel.toFixed(0)+'%';
+  instrVals.dpt004.textContent = sb4.demisterDP.toFixed(1);
+  instrVals.lt004.textContent = sb4.liquidLevel.toFixed(0)+'%';
+  instrVals.pt004.textContent = sb4.pressure.toFixed(0);
+}
+
+const indicDefs = [
+  {k:'pt009', lbl:'PT-009 Presión SB-009', unit:'kg/cm²', get:()=>state.sb009.pressure, max:90, warn:THRESH.pt009_pah, alarm:THRESH.pt009_pahh},
+  {k:'dp009', lbl:'ΔP-009 Desarenador', unit:'kg/cm²', get:()=>state.sb009.dP, max:6, warn:THRESH.dp009_pah, alarm:THRESH.dp009_pahh},
+  {k:'sand009', lbl:'Nivel de Arena SB-009', unit:'%', get:()=>state.sb009.sandLevel, max:100, warn:60, alarm:85},
+  {k:'pt101', lbl:'PT-101 Presión SB-001', unit:'kg/cm²', get:()=>state.sb001.pressure, max:95, warn:THRESH.pt001_pah, alarm:THRESH.pt001_pahh},
+  {k:'ft101', lbl:'FT-101 Caudal Gas', unit:'m³/h', get:()=>state.sb001.gasFlow, max:600},
+  {k:'lt001', lbl:'LT-001 Nivel SB-001', unit:'%', get:()=>state.sb001.liquidLevel, max:105, warn:THRESH.lt001_lah, alarm:THRESH.lt001_lahh},
+  {k:'dpt004', lbl:'ΔP Demister SB-004', unit:'psi', get:()=>state.sb004.demisterDP, max:7, warn:THRESH.dp004_pah, alarm:THRESH.dp004_pahh},
+  {k:'lt004', lbl:'LT-004 Nivel SB-004', unit:'%', get:()=>state.sb004.liquidLevel, max:105, warn:THRESH.lt004_lah, alarm:THRESH.lt004_lahh},
+];
+function buildIndicators(){
+  const grid = document.getElementById('indicGrid');
+  grid.innerHTML='';
+  indicDefs.forEach(d=>{
+    const box = document.createElement('div'); box.className='indic';
+    box.innerHTML = `<div class="lbl">${d.lbl}</div>
+      <div class="val digital" id="ival_${d.k}">--</div>
+      <div class="unit">${d.unit}</div>
+      <div class="bar-track"><div class="bar-fill" id="ibar_${d.k}" style="width:0%"></div></div>`;
+    grid.appendChild(box);
+  });
+}
+function renderIndicators(){
+  indicDefs.forEach(d=>{
+    const v = d.get();
+    const valEl = document.getElementById('ival_'+d.k);
+    const barEl = document.getElementById('ibar_'+d.k);
+    let cls='';
+    if(d.alarm!==undefined && v>=d.alarm) cls='alarm';
+    else if(d.warn!==undefined && v>=d.warn) cls='warn';
+    valEl.textContent = v.toFixed(1);
+    valEl.className = 'val digital '+cls;
+    barEl.style.width = clamp(v/d.max*100,0,100)+'%';
+    barEl.className = 'bar-fill '+cls;
+  });
+}
+
+const alarmDefs = [
+  {k:'pt009_pah', lbl:'PAH-009 · Presión Alta SB-009', tag:'PAH'},
+  {k:'pt009_pahh', lbl:'PAHH-009 · Presión Muy Alta SB-009', tag:'PAHH'},
+  {k:'dp009_pah', lbl:'PDAH-009 · ΔP Alta (arena) SB-009', tag:'PDAH'},
+  {k:'dp009_pahh', lbl:'PDAHH-009 · ΔP Muy Alta (taponado)', tag:'PDAHH'},
+  {k:'pt001_pal', lbl:'PAL-101 · Presión Baja SB-001', tag:'PAL'},
+  {k:'pt001_pah', lbl:'PAH-101 · Presión Alta SB-001', tag:'PAH'},
+  {k:'pt001_pahh', lbl:'PAHH-101 · Presión Muy Alta SB-001', tag:'PAHH'},
+  {k:'lt001_lal', lbl:'LAL-001 · Nivel Bajo SB-001', tag:'LAL'},
+  {k:'lt001_lah', lbl:'LAH-001 · Nivel Alto SB-001', tag:'LAH'},
+  {k:'lt001_lahh', lbl:'LAHH-001 · Nivel Muy Alto SB-001 (Slug)', tag:'LAHH'},
+  {k:'dp004_pah', lbl:'PDAH-004 · ΔP Alta Demister', tag:'PDAH'},
+  {k:'dp004_pahh', lbl:'PDAHH-004 · ΔP Muy Alta (Demister taponado)', tag:'PDAHH'},
+  {k:'lt004_lal', lbl:'LAL-004 · Nivel Bajo SB-004', tag:'LAL'},
+  {k:'lt004_lah', lbl:'LAH-004 · Nivel Alto SB-004', tag:'LAH'},
+  {k:'lt004_lahh', lbl:'LAHH-004 · Nivel Muy Alto SB-004', tag:'LAHH'},
+];
+function renderAlarms(){
+  const list = document.getElementById('alarmList');
+  list.innerHTML='';
+  let anyActive=false;
+  alarmDefs.forEach(a=>{
+    const active = !!state.alarms[a.k];
+    if(active) anyActive=true;
+    const row = document.createElement('div');
+    row.className='alarm-row '+(active?'active':'norm');
+    row.innerHTML = `<span>${a.lbl}</span><span class="tag-chip">${a.tag}</span>`;
+    list.appendChild(row);
+  });
+  const esdRow = document.createElement('div');
+  esdRow.style.marginTop='6px';
+  esdRow.innerHTML = `<button class="btn" id="btnResetESD" style="width:100%;">Reconocer / Reset ESD (si condiciones normales)</button>`;
+  list.appendChild(esdRow);
+  document.getElementById('btnResetESD').onclick=()=>{
+    if(!anyActive) resetESD(); else flashMsg('No se puede resetear: hay alarmas activas.');
+  };
+}
+
+function renderLoops(){
+  const panel = document.getElementById('loopsPanel');
+  panel.innerHTML='';
+  const defs=[
+    {k:'pic101', name:'PIC-101 · Presión SB-001', unit:'kg/cm²'},
+    {k:'lic001ba', name:'LIC-001BA / FIC-001B · Nivel SB-001', unit:'%'},
+    {k:'lic004', name:'LIC-004 · Nivel SB-004', unit:'%'},
+  ];
+  defs.forEach(d=>{
+    const L = state.loops[d.k];
+    const box = document.createElement('div'); box.className='loop';
+    box.innerHTML = `
+      <div class="top">
+        <span class="name">${d.name}</span>
+        <div class="mode-toggle">
+          <button data-m="auto" class="${L.mode==='auto'?'active':''}">AUTO</button>
+          <button data-m="manual" class="${L.mode==='manual'?'active':''}">MAN</button>
+        </div>
+      </div>
+      <div class="readout"><span>SP: ${L.sp.toFixed(0)} ${d.unit}</span><span>PV: ${L.pv.toFixed(1)} ${d.unit}</span><span>OUT: ${L.out.toFixed(0)}%</span></div>
+      <input type="range" min="0" max="100" value="${L.mode==='auto'? L.sp : L.out}" data-role="${L.mode==='auto'?'sp':'out'}">
+    `;
+    panel.appendChild(box);
+    const btns = box.querySelectorAll('.mode-toggle button');
+    btns.forEach(b=>b.onclick=()=>{ L.mode=b.dataset.m; renderLoops(); });
+    const range = box.querySelector('input[type=range]');
+    range.oninput=(e)=>{
+      const val = parseFloat(e.target.value);
+      if(range.dataset.role==='sp'){ L.sp = val; }
+      else { L.out = val; state.valves[L.valve].pct=val; state.valves[L.valve].open = val>0; }
+    };
+  });
+}
+
+function renderClock(){
+  document.getElementById('simTime').textContent = String(Math.floor(state.t)).padStart(4,'0');
+}
+
+function renderAll(){
+  renderValves(); renderPipes(); renderVessels(); renderIndicators(); renderAlarms(); renderClock();
+}
+
+/* =========================================================
+   ESCENARIOS
+   ========================================================= */
+document.getElementById('btnScenA').onclick = ()=>{
+  state.sb001.slugTimer = 25;
+  state.sb001.slugMagnitude = 9 + Math.random()*4;
+  flashMsg('Escenario A disparado: llegada de slug de líquido a SB-001. Observe LT-001, LAH/LAHH y respuesta de LIC-001BA.');
+};
+document.getElementById('btnScenB').onclick = ()=>{
+  state.flags.scenarioB_active = !state.flags.scenarioB_active;
+  const btn = document.getElementById('btnScenB');
+  btn.style.borderColor = state.flags.scenarioB_active? 'var(--yellow)':'';
+  btn.style.color = state.flags.scenarioB_active? 'var(--yellow)':'';
+  flashMsg(state.flags.scenarioB_active
+    ? 'Escenario B activado: ingreso masivo de arena a SB-009. Alinee a BYP-009 y purgue con DR-009.'
+    : 'Escenario B desactivado.');
+};
+document.getElementById('btnScenC').onclick = ()=>{
+  if(confirm('¿Confirma disparo de ESD1 (Blowdown Total)? Esto despresurizará todo el tren y cerrará las válvulas de aislación.')){
+    setESD('ESD1','Disparo manual de operador (botón de emergencia)');
+  }
+};
+document.getElementById('btnReset').onclick = ()=>{ location.reload(); };
+
+/* =========================================================
+   PROCEDIMIENTO LOTO (Escenario D) — 100% manual, en secuencia
+   Orden obligatorio: a) BYP  b) cerrar V-IN/V-OUT  c) venteo/BDV a 0
+   d) purga inferior para vaciar  e) N2 inertizado  f) bloqueo/etiquetado
+   ========================================================= */
+const lotoProcedures = {
+  'SB-009':{
+    steps:[
+      {title:'a) Abrir BYP-009', desc:'Abra BYP-009 al 100% para sostener el paso de proceso sin pasar por el SB-009.', valves:['vbp009'], check:()=> state.valves.vbp009.open && state.valves.vbp009.pct>=90},
+      {title:'b) Cerrar V-IN-009 y V-OUT-009', desc:'Aísle el equipo cerrando ambas válvulas de bloqueo del SB-009.', valves:['vin009','vout009'], check:()=> !state.valves.vin009.open && !state.valves.vout009.open},
+      {title:'c) Abrir venteo (DR-009) hasta 0 kg/cm²', desc:'Abra DR-009 para despresurizar el equipo aislado hasta PT-009 = 0 kg/cm².', valves:['vdr009'], check:()=> state.valves.vdr009.open && state.sb009.pressure<3},
+      {title:'d) Purga inferior — vaciar arena', desc:'Mantenga DR-009 abierta hasta vaciar completamente la arena acumulada en el fondo.', valves:['vdr009'], check:()=> state.sb009.sandLevel<3},
+      {title:'e) Abrir N2-009 (inertizado)', desc:'Abra N2-009 para barrer gases residuales antes de intervenir el equipo.', valves:['n2_009'], check:()=> state.valves.n2_009.open},
+      {title:'f) Bloqueo y etiquetado (LOTO físico)', desc:'Coloque candados/tarjetas en V-IN-009 y V-OUT-009. Confirme energía cero antes de habilitar el permiso de trabajo.', valves:['vin009','vout009'], check:()=> true},
+    ]
+  },
+  'SB-001':{
+    steps:[
+      {title:'a) Abrir BYP-001', desc:'Abra BYP-001 al 100% para sostener el paso de gas hacia SB-004 sin pasar por el SB-001.', valves:['vbp001'], check:()=> state.valves.vbp001.open && state.valves.vbp001.pct>=90},
+      {title:'b) Cerrar V-IN-001 y V-OUT-001', desc:'Aísle el equipo cerrando ambas válvulas de bloqueo de gas del SB-001.', valves:['vin001','vout001'], check:()=> !state.valves.vin001.open && !state.valves.vout001.open},
+      {title:'c) Abrir BDV-001A hasta 0 kg/cm²', desc:'Abra BDV-001A para despresurizar en forma controlada hacia antorcha hasta PT-101 = 0 kg/cm².', valves:['bdv001a'], check:()=> state.valves.bdv001a.open && state.sb001.pressure<3},
+      {title:'d) Purga inferior — vaciar líquido', desc:'Abra LV-001BA y SDV-001B para drenar el líquido remanente del fondo del equipo.', valves:['lv001ba','sdv001b'], check:()=> state.valves.lv001ba.open && state.valves.sdv001b.open && state.sb001.liquidLevel<5},
+      {title:'e) Abrir N2-001 (inertizado)', desc:'Abra N2-001 para barrido de gases residuales antes de intervenir.', valves:['n2_001'], check:()=> state.valves.n2_001.open},
+      {title:'f) Bloqueo y etiquetado (LOTO físico)', desc:'Coloque candados/tarjetas en V-IN-001 y V-OUT-001. Confirme energía cero.', valves:['vin001','vout001'], check:()=> true},
+    ]
+  },
+  'SB-004':{
+    steps:[
+      {title:'a) Abrir BYP-004', desc:'Abra BYP-004 al 100% para sostener el paso de gas hacia compresión sin pasar por el SB-004.', valves:['vbp004'], check:()=> state.valves.vbp004.open && state.valves.vbp004.pct>=90},
+      {title:'b) Cerrar V-IN-004 y SDV-OUT-004', desc:'Aísle el equipo cerrando la entrada y la salida a compresión del SB-004.', valves:['vin004','sdv004out'], check:()=> !state.valves.vin004.open && !state.valves.sdv004out.open},
+      {title:'c) Abrir VT-004 hasta 0 kg/cm²', desc:'Abra el venteo VT-004 hacia antorcha hasta despresurizar completamente el equipo.', valves:['vt004'], check:()=> state.valves.vt004.open && state.sb004.pressure<3},
+      {title:'d) Purga inferior — vaciar líquido', desc:'Abra LV-004 para drenar el líquido remanente antes de retirar el demister pad.', valves:['lv004'], check:()=> state.valves.lv004.open && state.sb004.liquidLevel<5},
+      {title:'e) Abrir N2-004 (inertizado)', desc:'Abra N2-004 para barrido de la malla demister antes de la limpieza.', valves:['n2_004'], check:()=> state.valves.n2_004.open},
+      {title:'f) Bloqueo y etiquetado (LOTO físico)', desc:'Coloque candados/tarjetas en V-IN-004 y SDV-OUT-004. Confirme energía cero antes de abrir el equipo.', valves:['vin004','sdv004out'], check:()=> true},
+    ]
+  }
+};
+document.getElementById('btnScenD').onclick = ()=>{
+  const eq = prompt('¿Qué equipo desea aislar para mantenimiento (LOTO)? Escriba: SB-009, SB-001 o SB-004');
+  const key = (eq||'').trim().toUpperCase();
+  if(!lotoProcedures[key]){ flashMsg('Equipo no reconocido.'); return; }
+  state.flags.lotoActive = key;
+  state.flags.lotoStep = 0;
+  document.getElementById('lotoEquipName').textContent = key;
+  document.getElementById('loto-panel').classList.add('show');
+  renderLoto(); renderValves();
+};
+function currentLotoValveIds(){
+  if(!state.flags.lotoActive) return [];
+  const proc = lotoProcedures[state.flags.lotoActive];
+  const step = proc.steps[state.flags.lotoStep];
+  return step ? step.valves : [];
+}
+function renderLoto(){
+  const key = state.flags.lotoActive;
+  if(!key) return;
+  const proc = lotoProcedures[key];
+  const cont = document.getElementById('lotoSteps');
+  cont.innerHTML='';
+  proc.steps.forEach((s,i)=>{
+    const div = document.createElement('div');
+    const done = s.check();
+    div.className = 'loto-step '+(i===state.flags.lotoStep?'current':'')+(done?' done':'');
+    div.innerHTML = `<div class="stitle">${done?'<span class="check">✔</span> ':''}${s.title}</div><div class="sdesc">${s.desc}</div>`;
+    cont.appendChild(div);
+  });
+}
+document.getElementById('lotoNext').onclick=()=>{
+  if(!state.flags.lotoActive) return;
+  const proc = lotoProcedures[state.flags.lotoActive];
+  const cur = proc.steps[state.flags.lotoStep];
+  if(!cur.check()){ flashMsg('Complete la acción del paso actual antes de avanzar (opere la válvula resaltada en el P&ID).'); return; }
+  state.flags.lotoStep = Math.min(state.flags.lotoStep+1, proc.steps.length-1);
+  renderLoto(); renderValves();
+};
+document.getElementById('lotoPrev').onclick=()=>{
+  state.flags.lotoStep = Math.max(state.flags.lotoStep-1,0);
+  renderLoto(); renderValves();
+};
+document.getElementById('lotoClose').onclick=()=>{
+  state.flags.lotoActive=null;
+  document.getElementById('loto-panel').classList.remove('show');
+  renderValves();
+};
+
+/* =========================================================
+   INIT + LOOP
+   ========================================================= */
+buildIndicators();
+renderLoops();
+renderAll();
+
+setInterval(()=>{
+  if(!state.flags.running) return;
+  stepPhysics(1);
+  renderAll();
+  if(state.flags.lotoActive) renderLoto();
+}, 400);
+
+</script>
+</body>
+</html>
