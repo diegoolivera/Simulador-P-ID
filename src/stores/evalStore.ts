@@ -1,20 +1,12 @@
 import { create } from 'zustand';
 import type { AuditEvent } from '../types/plant';
+import { evaluateRules } from '../eval/rules';
+import { computeScore as calculateScore } from '../eval/score';
+import type { RuleResult } from '../eval/rules';
+import type { ScoreReport } from '../eval/score';
 
-export type Severity = 'CRITICAL' | 'PROCESS' | 'EFFICIENCY';
-
-export interface RuleResult {
-  id: string;
-  severity: Severity;
-  message: string;
-}
-
-export interface ScoreReport {
-  score: number;
-  max: number;
-  tier: 'EXPERT' | 'PROCESS' | 'TRAINING';
-  results: RuleResult[];
-}
+export type { Severity, RuleResult } from '../eval/rules';
+export type { ScoreReport } from '../eval/score';
 
 type State = {
   audit: AuditEvent[];
@@ -27,7 +19,10 @@ type State = {
   finalize: () => void;
 };
 
-const weight = (s: Severity) => (s === 'CRITICAL' ? 50 : s === 'PROCESS' ? 20 : 10);
+const allResults = (state: { audit: AuditEvent[]; violations: RuleResult[] }): RuleResult[] => [
+  ...state.violations,
+  ...evaluateRules(state.audit),
+];
 
 export const useEvalStore = create<State>()((set, get) => ({
   audit: [],
@@ -36,18 +31,6 @@ export const useEvalStore = create<State>()((set, get) => ({
   startScenario: () => set({ audit: [], violations: [], report: null }),
   record: (events) => set((state) => ({ audit: state.audit.concat(events) })),
   addResult: (result) => set((state) => ({ violations: [...state.violations, result] })),
-  computeScore: () => {
-    let score = 100;
-    let critical = false;
-    for (const r of get().violations) {
-      score -= weight(r.severity);
-      if (r.severity === 'CRITICAL') critical = true;
-    }
-    score = Math.max(0, score);
-    const max = critical ? 60 : 100;
-    const capped = Math.min(score, max);
-    const tier = capped >= 90 ? 'EXPERT' : capped >= 60 ? 'PROCESS' : 'TRAINING';
-    return { score: capped, max, tier, results: get().violations };
-  },
-  finalize: () => set({ report: get().computeScore() }),
+  computeScore: () => calculateScore(allResults(get())),
+  finalize: () => set({ report: calculateScore(allResults(get())) }),
 }));
