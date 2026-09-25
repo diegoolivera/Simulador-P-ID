@@ -51,4 +51,42 @@ describe('PlantGraph', () => {
     graph.addEdge({ id: 'ba', from: 'b', to: 'a', kind: 'pipe', conductance: 1 });
     expect(() => graph.getTopologicalOrder()).toThrow('Cycle detected');
   });
+
+  it('caches topological order and invalidates on structural change', () => {
+    const graph = new PlantGraph();
+    graph.addNode(makeNode('a'));
+    graph.addNode(makeNode('b'));
+    graph.addEdge({ id: 'ab', from: 'a', to: 'b', kind: 'pipe', conductance: 1 });
+    const first = graph.getTopologicalOrder();
+    const second = graph.getTopologicalOrder();
+    expect(first).toBe(second);
+
+    graph.addNode(makeNode('c'));
+    graph.addEdge({ id: 'bc', from: 'b', to: 'c', kind: 'pipe', conductance: 1 });
+    expect(graph.getTopologicalOrder()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('propagates dirty downstream only', () => {
+    const graph = new PlantGraph();
+    graph.addNode(makeNode('a'));
+    graph.addNode(makeNode('b'));
+    graph.addNode(makeNode('c'));
+    graph.addNode(makeNode('d'));
+    graph.addEdge({ id: 'ab', from: 'a', to: 'b', kind: 'pipe', conductance: 1 });
+    graph.addEdge({ id: 'bc', from: 'b', to: 'c', kind: 'valved', conductance: 1, valveTag: 'BC' });
+    graph.addEdge({ id: 'cd', from: 'c', to: 'd', kind: 'pipe', conductance: 1 });
+
+    const dirty = graph.markDirty(['bc']);
+    expect(dirty).toContain('c');
+    expect(dirty).toContain('d');
+    expect(dirty).not.toContain('a');
+    expect(dirty).not.toContain('b');
+    expect(graph.dirtyEdges.has('bc')).toBe(true);
+    expect(graph.dirtyEdges.has('cd')).toBe(true);
+    expect(graph.dirtyEdges.has('ab')).toBe(false);
+
+    graph.clearDirty();
+    expect(graph.dirtyEdges.size).toBe(0);
+    expect(graph.dirtyNodes.size).toBe(0);
+  });
 });
