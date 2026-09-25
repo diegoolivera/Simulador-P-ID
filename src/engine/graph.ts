@@ -98,6 +98,10 @@ export class PlantGraph {
     return new Set(this.dirtyNodes);
   }
 
+  outgoingEdges(nodeId: string): PlantEdge[] {
+    return this.edges.filter((edge) => edge.from === nodeId);
+  }
+
   clearDirty(): void {
     this.dirtyEdges.clear();
     this.dirtyNodes.clear();

@@ -2,7 +2,7 @@ export type PlantNodeKind = 'source' | 'vessel' | 'sink' | 'junction';
 
 export type PlantEdgeKind = 'pipe' | 'valved' | 'control';
 
-export type ValveType = 'onoff' | 'control';
+export type ValveType = 'manual' | 'control' | 'sdv' | 'bdv' | 'psv';
 
 export type FailPosition = 'FC' | 'FO' | 'FL';
 
@@ -53,6 +53,7 @@ export interface Valve {
   targetPosition: number;
   locked: boolean;
   lastPriority: CommandPriority;
+  leakage: number;
 }
 
 export interface Loop {
@@ -74,4 +75,14 @@ export interface Alarm {
   active: boolean;
   acknowledged: boolean;
   shelvedUntil?: number;
+}
+
+export interface AuditEvent {
+  t: number;
+  source: 'valve' | 'esd' | 'loop' | 'operator';
+  tag: string;
+  field: string;
+  from: number | string;
+  to: number | string;
+  reason?: string;
 }
