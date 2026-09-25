@@ -51,7 +51,14 @@ export function commandValve(
   const from = valve.targetPosition;
   valve.targetPosition = target;
   valve.lastPriority = priority;
-  audit.push({ t, source: priority === 'esd' ? 'esd' : 'operator', tag: valve.tag, field: 'targetPosition', from, to: target, reason });
+  const sourceMap: Record<CommandPriority, AuditEvent['source']> = {
+    loto: 'operator',
+    esd: 'esd',
+    interlock: 'interlock',
+    auto: 'loop',
+    manual: 'operator',
+  };
+  audit.push({ t, source: sourceMap[priority], tag: valve.tag, field: 'targetPosition', from, to: target, reason });
   return true;
 }
 
@@ -73,5 +80,8 @@ export function setLock(valve: Valve, locked: boolean): void {
 }
 
 export function applyAirFailure(valves: Iterable<Valve>, audit: AuditEvent[], t: number): void {
-  for (const v of valves) commandValve(v, v.failPosition === 'FO' ? 1 : 0, 'esd', 'Instrument air failure', audit, t);
+  for (const v of valves) {
+    const target = v.failPosition === 'FO' ? 1 : v.failPosition === 'FL' ? v.position : 0;
+    commandValve(v, target, 'esd', 'Instrument air failure', audit, t);
+  }
 }

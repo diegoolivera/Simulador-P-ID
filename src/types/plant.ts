@@ -65,6 +65,13 @@ export interface Loop {
   output: number;
   processVariable: number;
   integral: number;
+  kp: number;
+  ki: number;
+  outputMin: number;
+  outputMax: number;
+  valveTag: string;
+  pvNodeTag: string;
+  pvField: 'pressure' | 'liquidLevel';
 }
 
 export interface Alarm {
@@ -75,11 +82,14 @@ export interface Alarm {
   active: boolean;
   acknowledged: boolean;
   shelvedUntil?: number;
+  t: number;
+  processValue: number;
+  threshold: number;
 }
 
 export interface AuditEvent {
   t: number;
-  source: 'valve' | 'esd' | 'loop' | 'operator';
+  source: 'valve' | 'esd' | 'loop' | 'operator' | 'interlock';
   tag: string;
   field: string;
   from: number | string;
