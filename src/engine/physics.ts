@@ -6,6 +6,8 @@ import { applyAirFailure, stepValveStrokes } from './valve';
 import { stepLoops } from './loops';
 import { evaluateAlarms } from './alarms';
 import type { InstrumentAirOptions } from './instrumentAir';
+import type { CoolingWaterOptions } from './coolingWater';
+import type { FuelGasOptions } from './fuelGas';
 
 export interface PhysicsOptions {
   sourcePressure?: number;
@@ -15,6 +17,10 @@ export interface PhysicsOptions {
   esdLevel?: number;
   instrumentAirOk?: boolean;
   instrumentAirOptions?: InstrumentAirOptions;
+  coolingWaterOk?: boolean;
+  coolingWaterOptions?: CoolingWaterOptions;
+  fuelGasOk?: boolean;
+  fuelGasOptions?: FuelGasOptions;
   slug?: { targetTag: string; liquidFlow: number };
   t?: number;
   loops?: Loop[];

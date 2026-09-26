@@ -5,23 +5,30 @@ import type { LoopMode } from '../types/plant';
 import { canResetEsd, checkEsdEscalation } from '../engine/esd';
 import { PlantGraph } from '../engine/graph';
 import { createPhase1Graph } from '../data/phase1';
-import { createInstrumentAirGraph } from '../data/phase2';
+import { createCoolingWaterGraph, createFuelGasGraph, createInstrumentAirGraph } from '../data/phase2';
 import { commandValve as applyCommand, createValve, failPositionFromTag, setLock, valveTypeFromTag } from '../engine/valve';
 import { createLoop, PHASE1_LOOPS } from '../engine/loops';
 import { acknowledgeAlarm, PHASE1_ALARM_RULES, shelveAlarm } from '../engine/alarms';
 import { stepPhysics, type PhysicsOptions } from '../engine/physics';
 import { evaluateInstrumentAirAlarms, isInstrumentAirAlarm, stepInstrumentAir } from '../engine/instrumentAir';
+import { evaluateCoolingWaterAlarms, isCoolingWaterAlarm, stepCoolingWater } from '../engine/coolingWater';
+import { evaluateFuelGasAlarms, isFuelGasAlarm, stepFuelGas } from '../engine/fuelGas';
 import { useScenarioStore } from './scenarioStore';
 import { useEvalStore } from './evalStore';
 
 type State = {
   graph: PlantGraph;
   iaGraph: PlantGraph;
+  cwGraph: PlantGraph;
+  fgGraph: PlantGraph;
   valves: Map<string, Valve>;
   loops: Loop[];
   activeAlarms: Alarm[];
   esdLevel: EsdLevel;
   instrumentAirOk: boolean;
+  coolingWaterOk: boolean;
+  fuelGasOk: boolean;
+  flameOk: boolean;
   t: number;
   running: boolean;
   scenarioOptions: Partial<PhysicsOptions>;
@@ -30,6 +37,7 @@ type State = {
   setEsdLevel: (level: EsdLevel) => void;
   resetEsd: (checklistComplete: boolean) => boolean;
   setInstrumentAirOk: (ok: boolean) => void;
+  setCoolingWaterOk: (ok: boolean) => void;
   setRunning: (running: boolean) => void;
   setScenarioOptions: (options: Partial<PhysicsOptions>) => void;
   lockValve: (tag: string, locked: boolean, reason: string) => boolean;
@@ -53,14 +61,21 @@ const buildValves = (graph: PlantGraph): Map<string, Valve> => {
 const makeInitial = () => {
   const graph = createPhase1Graph();
   const iaGraph = createInstrumentAirGraph();
+  const cwGraph = createCoolingWaterGraph();
+  const fgGraph = createFuelGasGraph();
   return {
     graph,
     iaGraph,
+    cwGraph,
+    fgGraph,
     valves: buildValves(graph),
     loops: PHASE1_LOOPS.map(createLoop),
     activeAlarms: [] as Alarm[],
     esdLevel: 0 as EsdLevel,
     instrumentAirOk: true,
+    coolingWaterOk: true,
+    fuelGasOk: true,
+    flameOk: true,
     t: 0,
     running: false,
     scenarioOptions: {} as Partial<PhysicsOptions>,
@@ -88,6 +103,7 @@ export const useSimulationStore = create<State>()((set, get) => ({
     return true;
   },
   setInstrumentAirOk: (ok) => set({ instrumentAirOk: ok }),
+  setCoolingWaterOk: (ok) => set({ coolingWaterOk: ok }),
   setRunning: (running) => set({ running }),
   setScenarioOptions: (options) => set({ scenarioOptions: options }),
   lockValve: (tag, locked, reason) => {
@@ -142,9 +158,27 @@ export const useSimulationStore = create<State>()((set, get) => ({
     };
     const { instrumentAirOk } = stepInstrumentAir(state.iaGraph, dt, iaOptions);
 
-    const prePhysicsAlarms = state.activeAlarms.filter((a) => !isInstrumentAirAlarm(a));
+    const cwOptions = {
+      ...(opts.coolingWaterOptions ?? state.scenarioOptions.coolingWaterOptions),
+      forceFail: opts.coolingWaterOk === false,
+    };
+    const { coolingWaterOk } = stepCoolingWater(state.cwGraph, dt, cwOptions);
+
+    const fgOptions = {
+      ...(opts.fuelGasOptions ?? state.scenarioOptions.fuelGasOptions),
+      forceFail: opts.fuelGasOk === false,
+    };
+    const { fuelGasOk, flameOk } = stepFuelGas(state.fgGraph, dt, fgOptions);
+
+    const preUtilityAlarms = state.activeAlarms.filter(
+      (a) => !isInstrumentAirAlarm(a) && !isCoolingWaterAlarm(a) && !isFuelGasAlarm(a)
+    );
     const prevIaAlarms = state.activeAlarms.filter(isInstrumentAirAlarm);
+    const prevCwAlarms = state.activeAlarms.filter(isCoolingWaterAlarm);
+    const prevFgAlarms = state.activeAlarms.filter(isFuelGasAlarm);
     const iaAlarms = evaluateInstrumentAirAlarms(state.iaGraph, iaOptions, prevIaAlarms, state.t);
+    const cwAlarms = evaluateCoolingWaterAlarms(state.cwGraph, cwOptions, prevCwAlarms, state.t);
+    const fgAlarms = evaluateFuelGasAlarms(state.fgGraph, fgOptions, prevFgAlarms, state.t);
 
     const options: PhysicsOptions = {
       ...state.scenarioOptions,
@@ -152,14 +186,17 @@ export const useSimulationStore = create<State>()((set, get) => ({
       t: state.t,
       loops: state.loops,
       alarmRules: PHASE1_ALARM_RULES,
-      activeAlarms: prePhysicsAlarms,
+      activeAlarms: preUtilityAlarms,
       esdLevel: Math.max(state.esdLevel, (opts.esdLevel ?? 0) as EsdLevel),
       instrumentAirOk,
+      coolingWaterOk,
+      fuelGasOk,
+      fuelGasOptions: fgOptions,
     };
     const audit = stepPhysics(state.graph, state.valves, dt, options);
     if (audit.length) useEvalStore.getState().record(audit);
     const newEsd = (checkEsdEscalation(state.graph) ?? options.esdLevel ?? state.esdLevel) as EsdLevel;
-    const activeAlarms = [...options.activeAlarms, ...iaAlarms];
+    const activeAlarms = [...(options.activeAlarms ?? []), ...iaAlarms, ...cwAlarms, ...fgAlarms];
     scenario.checkEndConditions(state.graph, activeAlarms, newEsd);
     set({
       t: state.t + dt,
@@ -168,7 +205,12 @@ export const useSimulationStore = create<State>()((set, get) => ({
       activeAlarms,
       esdLevel: newEsd,
       instrumentAirOk,
+      coolingWaterOk,
+      fuelGasOk,
+      flameOk,
       iaGraph: state.iaGraph,
+      cwGraph: state.cwGraph,
+      fgGraph: state.fgGraph,
     });
   },
 }));

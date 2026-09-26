@@ -49,6 +49,22 @@
     "IA-RECV": { "x": 1340, "y": 220, "rotation": 0, "symbol": "vessel" },
     "IA-HEADER": { "x": 1340, "y": 320, "rotation": 0, "symbol": "header" },
     "PT-IA-HEADER": { "x": 1400, "y": 320, "rotation": 0, "symbol": "transmitter" },
-    "PSLL-IA": { "x": 1400, "y": 360, "rotation": 0, "symbol": "transmitter" }
+    "PSLL-IA": { "x": 1400, "y": 360, "rotation": 0, "symbol": "transmitter" },
+    "CW-PUMP-A": { "x": 100, "y": 120, "rotation": 0, "symbol": "pump" },
+    "CW-PUMP-B": { "x": 180, "y": 120, "rotation": 0, "symbol": "pump" },
+    "CW-HEADER": { "x": 140, "y": 220, "rotation": 0, "symbol": "header" },
+    "CW-RETURN": { "x": 190, "y": 320, "rotation": 0, "symbol": "sink" },
+    "PT-CW-HEADER": { "x": 200, "y": 220, "rotation": 0, "symbol": "transmitter" },
+    "PSLL-CW": { "x": 200, "y": 260, "rotation": 0, "symbol": "transmitter" },
+    "FG-SUPPLY": { "x": 450, "y": 120, "rotation": 0, "symbol": "source" },
+    "FG-001": { "x": 550, "y": 120, "rotation": 0, "symbol": "vessel" },
+    "FG-REG": { "x": 650, "y": 120, "rotation": 0, "symbol": "junction" },
+    "FG-HEADER": { "x": 650, "y": 220, "rotation": 0, "symbol": "header" },
+    "FG-PILOT": { "x": 750, "y": 220, "rotation": 0, "symbol": "sink" },
+    "FG-FLARE": { "x": 750, "y": 120, "rotation": 0, "symbol": "flame" },
+    "FG-HEATER": { "x": 650, "y": 320, "rotation": 0, "symbol": "sink" },
+    "PT-FG-HEADER": { "x": 700, "y": 220, "rotation": 0, "symbol": "transmitter" },
+    "PSLL-FG": { "x": 700, "y": 260, "rotation": 0, "symbol": "transmitter" },
+    "ZA-FG-001": { "x": 600, "y": 160, "rotation": 0, "symbol": "transmitter" }
   }
 }
