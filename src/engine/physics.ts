@@ -5,6 +5,7 @@ import { applyEsd, checkEsdEscalation, EsdLevel } from './esd';
 import { applyAirFailure, stepValveStrokes } from './valve';
 import { stepLoops } from './loops';
 import { evaluateAlarms } from './alarms';
+import type { InstrumentAirOptions } from './instrumentAir';
 
 export interface PhysicsOptions {
   sourcePressure?: number;
@@ -13,6 +14,7 @@ export interface PhysicsOptions {
   sourceSandFraction?: number;
   esdLevel?: number;
   instrumentAirOk?: boolean;
+  instrumentAirOptions?: InstrumentAirOptions;
   slug?: { targetTag: string; liquidFlow: number };
   t?: number;
   loops?: Loop[];
