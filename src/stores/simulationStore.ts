@@ -5,15 +5,18 @@ import type { LoopMode } from '../types/plant';
 import { canResetEsd, checkEsdEscalation } from '../engine/esd';
 import { PlantGraph } from '../engine/graph';
 import { createPhase1Graph } from '../data/phase1';
+import { createInstrumentAirGraph } from '../data/phase2';
 import { commandValve as applyCommand, createValve, failPositionFromTag, setLock, valveTypeFromTag } from '../engine/valve';
 import { createLoop, PHASE1_LOOPS } from '../engine/loops';
 import { acknowledgeAlarm, PHASE1_ALARM_RULES, shelveAlarm } from '../engine/alarms';
 import { stepPhysics, type PhysicsOptions } from '../engine/physics';
+import { evaluateInstrumentAirAlarms, isInstrumentAirAlarm, stepInstrumentAir } from '../engine/instrumentAir';
 import { useScenarioStore } from './scenarioStore';
 import { useEvalStore } from './evalStore';
 
 type State = {
   graph: PlantGraph;
+  iaGraph: PlantGraph;
   valves: Map<string, Valve>;
   loops: Loop[];
   activeAlarms: Alarm[];
@@ -49,8 +52,10 @@ const buildValves = (graph: PlantGraph): Map<string, Valve> => {
 
 const makeInitial = () => {
   const graph = createPhase1Graph();
+  const iaGraph = createInstrumentAirGraph();
   return {
     graph,
+    iaGraph,
     valves: buildValves(graph),
     loops: PHASE1_LOOPS.map(createLoop),
     activeAlarms: [] as Alarm[],
@@ -130,27 +135,40 @@ export const useSimulationStore = create<State>()((set, get) => ({
     const scenario = useScenarioStore.getState();
     scenario.step(dt);
     const opts = scenario.getPhysicsOptions();
+
+    const iaOptions = {
+      ...(opts.instrumentAirOptions ?? state.scenarioOptions.instrumentAirOptions),
+      forceFail: opts.instrumentAirOk === false,
+    };
+    const { instrumentAirOk } = stepInstrumentAir(state.iaGraph, dt, iaOptions);
+
+    const prePhysicsAlarms = state.activeAlarms.filter((a) => !isInstrumentAirAlarm(a));
+    const prevIaAlarms = state.activeAlarms.filter(isInstrumentAirAlarm);
+    const iaAlarms = evaluateInstrumentAirAlarms(state.iaGraph, iaOptions, prevIaAlarms, state.t);
+
     const options: PhysicsOptions = {
       ...state.scenarioOptions,
       ...opts,
       t: state.t,
       loops: state.loops,
       alarmRules: PHASE1_ALARM_RULES,
-      activeAlarms: state.activeAlarms,
+      activeAlarms: prePhysicsAlarms,
       esdLevel: Math.max(state.esdLevel, (opts.esdLevel ?? 0) as EsdLevel),
-      instrumentAirOk: opts.instrumentAirOk ?? state.instrumentAirOk,
+      instrumentAirOk,
     };
     const audit = stepPhysics(state.graph, state.valves, dt, options);
     if (audit.length) useEvalStore.getState().record(audit);
     const newEsd = (checkEsdEscalation(state.graph) ?? options.esdLevel ?? state.esdLevel) as EsdLevel;
-    scenario.checkEndConditions(state.graph, state.activeAlarms, newEsd);
+    const activeAlarms = [...options.activeAlarms, ...iaAlarms];
+    scenario.checkEndConditions(state.graph, activeAlarms, newEsd);
     set({
       t: state.t + dt,
       valves: new Map(state.valves),
       loops: [...state.loops],
-      activeAlarms: [...state.activeAlarms],
+      activeAlarms,
       esdLevel: newEsd,
-      instrumentAirOk: options.instrumentAirOk ?? state.instrumentAirOk,
+      instrumentAirOk,
+      iaGraph: state.iaGraph,
     });
   },
 }));
