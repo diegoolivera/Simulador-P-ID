@@ -43,6 +43,12 @@
     "LT-004": { "x": 990, "y": 420, "rotation": 0, "symbol": "transmitter" },
     "PIC-101": { "x": 700, "y": 240, "rotation": 0, "symbol": "controller" },
     "LIC-001BA": { "x": 700, "y": 500, "rotation": 0, "symbol": "controller" },
-    "LIC-004": { "x": 1050, "y": 500, "rotation": 0, "symbol": "controller" }
+    "LIC-004": { "x": 1050, "y": 500, "rotation": 0, "symbol": "controller" },
+    "IA-COMP-A": { "x": 1300, "y": 120, "rotation": 0, "symbol": "compressor" },
+    "IA-COMP-B": { "x": 1380, "y": 120, "rotation": 0, "symbol": "compressor" },
+    "IA-RECV": { "x": 1340, "y": 220, "rotation": 0, "symbol": "vessel" },
+    "IA-HEADER": { "x": 1340, "y": 320, "rotation": 0, "symbol": "header" },
+    "PT-IA-HEADER": { "x": 1400, "y": 320, "rotation": 0, "symbol": "transmitter" },
+    "PSLL-IA": { "x": 1400, "y": 360, "rotation": 0, "symbol": "transmitter" }
   }
 }

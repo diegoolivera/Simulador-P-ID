@@ -1,4 +1,4 @@
-export type PlantNodeKind = 'source' | 'vessel' | 'sink' | 'junction';
+export type PlantNodeKind = 'source' | 'vessel' | 'sink' | 'junction' | 'header';
 
 export type PlantEdgeKind = 'pipe' | 'valved' | 'control';
 
