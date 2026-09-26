@@ -8,6 +8,7 @@ import { evaluateAlarms } from './alarms';
 import type { InstrumentAirOptions } from './instrumentAir';
 import type { CoolingWaterOptions } from './coolingWater';
 import type { FuelGasOptions } from './fuelGas';
+import type { ElectricalOptions } from './electrical';
 
 export interface PhysicsOptions {
   sourcePressure?: number;
@@ -21,6 +22,8 @@ export interface PhysicsOptions {
   coolingWaterOptions?: CoolingWaterOptions;
   fuelGasOk?: boolean;
   fuelGasOptions?: FuelGasOptions;
+  electricalOk?: boolean;
+  electricalOptions?: ElectricalOptions;
   slug?: { targetTag: string; liquidFlow: number };
   t?: number;
   loops?: Loop[];

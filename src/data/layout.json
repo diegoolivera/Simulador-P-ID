@@ -65,6 +65,16 @@
     "FG-HEATER": { "x": 650, "y": 320, "rotation": 0, "symbol": "sink" },
     "PT-FG-HEADER": { "x": 700, "y": 220, "rotation": 0, "symbol": "transmitter" },
     "PSLL-FG": { "x": 700, "y": 260, "rotation": 0, "symbol": "transmitter" },
-    "ZA-FG-001": { "x": 600, "y": 160, "rotation": 0, "symbol": "transmitter" }
+    "ZA-FG-001": { "x": 600, "y": 160, "rotation": 0, "symbol": "transmitter" },
+    "GEN-001": { "x": 1200, "y": 650, "rotation": 0, "symbol": "source" },
+    "BUS-MAIN": { "x": 1300, "y": 650, "rotation": 0, "symbol": "header" },
+    "MCC-001": { "x": 1400, "y": 650, "rotation": 0, "symbol": "junction" },
+    "LOAD-PROC": { "x": 1400, "y": 750, "rotation": 0, "symbol": "sink" },
+    "LOAD-ESSENTIAL": { "x": 1300, "y": 750, "rotation": 0, "symbol": "sink" },
+    "PT-ELE-BUS": { "x": 1360, "y": 650, "rotation": 0, "symbol": "transmitter" },
+    "VOLT-LO-BUS": { "x": 1360, "y": 690, "rotation": 0, "symbol": "transmitter" },
+    "UF-BUS": { "x": 1240, "y": 690, "rotation": 0, "symbol": "transmitter" },
+    "OF-BUS": { "x": 1240, "y": 610, "rotation": 0, "symbol": "transmitter" },
+    "ZA-GEN-001": { "x": 1200, "y": 610, "rotation": 0, "symbol": "transmitter" }
   }
 }

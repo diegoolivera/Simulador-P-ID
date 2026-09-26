@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   coolingWaterNodes,
   createCoolingWaterGraph,
+  createElectricalGraph,
   createFuelGasGraph,
   createInstrumentAirGraph,
+  electricalNodes,
   fuelGasNodes,
   instrumentAirEdges,
   instrumentAirNodes,
@@ -54,6 +56,19 @@ describe('Phase 2 fuel gas data', () => {
 
   it('layout covers every fuel gas node tag', () => {
     for (const node of fuelGasNodes) {
+      expect(items[node.tag], `missing layout for ${node.tag}`).toBeDefined();
+    }
+  });
+});
+
+describe('Phase 2 electrical data', () => {
+  it('graph is acyclic and contains all nodes', () => {
+    const graph = createElectricalGraph();
+    expect(graph.getTopologicalOrder().length).toBe(electricalNodes.length);
+  });
+
+  it('layout covers every electrical node tag', () => {
+    for (const node of electricalNodes) {
       expect(items[node.tag], `missing layout for ${node.tag}`).toBeDefined();
     }
   });
