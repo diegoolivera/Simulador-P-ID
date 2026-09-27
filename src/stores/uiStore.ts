@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 
-type View = 'scada' | 'trends' | 'report';
+type View = 'scada' | 'rounds' | 'report';
 type Theme = 'light' | 'dark';
 type Dialog = 'loto' | 'esd' | null;
+type Template = 'basic' | 'medium' | 'complex';
 interface Tooltip { tag: string; x: number; y: number; }
 
 type State = {
@@ -11,6 +12,8 @@ type State = {
   dialog: Dialog;
   theme: Theme;
   tooltip: Tooltip | null;
+  editMode: boolean;
+  template: Template;
   setView: (view: View) => void;
   selectTag: (tag: string | null) => void;
   openDialog: (dialog: Exclude<Dialog, null>) => void;
@@ -18,14 +21,18 @@ type State = {
   setTheme: (theme: Theme) => void;
   showTooltip: (tooltip: Tooltip) => void;
   hideTooltip: () => void;
+  setEditMode: (editMode: boolean) => void;
+  setTemplate: (template: Template) => void;
 };
 
 export const useUiStore = create<State>()((set) => ({
   view: 'scada',
   selectedTag: null,
   dialog: null,
-  theme: 'light',
+  theme: 'dark',
   tooltip: null,
+  editMode: false,
+  template: 'complex',
   setView: (view) => set({ view }),
   selectTag: (tag) => set({ selectedTag: tag }),
   openDialog: (dialog) => set({ dialog }),
@@ -33,4 +40,6 @@ export const useUiStore = create<State>()((set) => ({
   setTheme: (theme) => set({ theme }),
   showTooltip: (tooltip) => set({ tooltip }),
   hideTooltip: () => set({ tooltip: null }),
+  setEditMode: (editMode) => set({ editMode }),
+  setTemplate: (template) => set({ template }),
 }));

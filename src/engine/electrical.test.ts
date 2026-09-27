@@ -43,7 +43,7 @@ describe('Electrical one-line', () => {
       graph,
       10,
       { generatorRunning: false },
-      { frequency: 50, busVoltage: 0.83, electricalOk: false, breakers: { 'BRK-GEN': true, 'BRK-MCC': true, 'BRK-PROC': true, 'BRK-ESS': true } }
+      { frequency: 50, busVoltage: 0.83, electricalOk: false, breakers: { 'BRK-GEN': true, 'BRK-MCC': true, 'BRK-PROC': true, 'BRK-ESS': true }, load: 0.9 }
     );
     expect(state.breakers['BRK-GEN']).toBe(false);
   });
@@ -74,6 +74,7 @@ describe('Electrical one-line', () => {
       busVoltage: NOMINAL_BUS_VOLTAGE,
       electricalOk: true,
       breakers: { 'BRK-GEN': true, 'BRK-MCC': true, 'BRK-PROC': true, 'BRK-ESS': true },
+      load: 1.1,
     };
     const alarms = evaluateElectricalAlarms(graph, {}, state, [], 0);
     expect(alarms.some((a) => a.id === 'OF-BUS')).toBe(true);

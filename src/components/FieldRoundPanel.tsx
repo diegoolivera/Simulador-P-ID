@@ -30,7 +30,7 @@ const ROUNDS: Record<RoundId, { title: string; items: Item[] }> = {
     title: 'Flare',
     items: [
       { id: 'fl-pilot', label: 'Flare pilot stable', critical: true },
-      { id: 'fl-bdv', label: 'BDV-001A available', critical: false },
+      { id: 'fl-bdv', label: 'BDV-6505 available', critical: false },
     ],
   },
 };

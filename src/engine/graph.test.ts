@@ -13,6 +13,8 @@ const makeNode = (id: string): PlantNode => ({
   separationEfficiency: 0,
   demisterDP: 0,
   fouling: 0,
+  gasFlow: 0,
+  liquidFlow: 0,
   inletIds: [],
   outletIds: [],
 });

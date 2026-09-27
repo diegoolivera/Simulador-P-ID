@@ -17,6 +17,8 @@ export interface ElectricalOptions {
   generatorTrip?: boolean;
   forceFail?: boolean;
   breakers?: Record<string, boolean>;
+  /** Additional service load on top of the closed breakers (0..1 of capacity). */
+  extraLoad?: number;
 }
 
 export interface ElectricalState {
@@ -24,6 +26,8 @@ export interface ElectricalState {
   busVoltage: number;
   electricalOk: boolean;
   breakers: Record<string, boolean>;
+  /** Total generator load as a fraction of capacity (breakers + extraLoad). */
+  load: number;
 }
 
 const DEFAULT_BREAKERS: Record<string, boolean> = {
@@ -55,11 +59,11 @@ export function stepElectrical(
   let breakers = { ...(options.breakers ?? prev?.breakers ?? DEFAULT_BREAKERS) };
 
   let frequency = prev?.frequency ?? NOMINAL_FREQUENCY;
+  const totalLoad = activeLoad(breakers) + (options.extraLoad ?? 0);
   if (!generatorRunning || tripped || !breakers['BRK-GEN']) {
     frequency = Math.max(0, frequency - SPIN_DOWN_RATE * dt);
   } else {
-    const load = activeLoad(breakers);
-    const overload = load > GENERATOR_CAPACITY ? (load - GENERATOR_CAPACITY) / GENERATOR_CAPACITY : 0;
+    const overload = totalLoad > GENERATOR_CAPACITY ? (totalLoad - GENERATOR_CAPACITY) / GENERATOR_CAPACITY : 0;
     const targetFrequency = NOMINAL_FREQUENCY * (1 - overload * 0.1);
     frequency += (targetFrequency - frequency) * Math.min(FREQ_LAG * dt, 1);
   }
@@ -90,7 +94,13 @@ export function stepElectrical(
     frequency <= OVER_FREQUENCY &&
     busVoltage >= UNDER_VOLTAGE;
 
-  return { frequency, busVoltage, electricalOk, breakers };
+  return {
+    frequency,
+    busVoltage,
+    electricalOk,
+    breakers,
+    load: (activeLoad(breakers) + (options.extraLoad ?? 0)) / GENERATOR_CAPACITY,
+  };
 }
 
 interface ElecAlarmRule {

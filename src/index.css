@@ -1,0 +1,89 @@
+@keyframes flowDash {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+:root {
+  --bg-canvas: #0b1120;
+  --bg-panel: #111827;
+  --bg-panel-elevated: #1f2937;
+  --border-panel: #374151;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --alarm-critical: #ef4444;
+  --alarm-high: #f59e0b;
+  --alarm-low: #60a5fa;
+  --ok: #22c55e;
+  --warning: #eab308;
+  --pipe: #64748b;
+  --valve-open: #22c55e;
+  --valve-closed: #94a3b8;
+  --valve-locked: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border-panel);
+  border-radius: 4px;
+  padding: 5px 12px;
+  background: var(--bg-panel-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+button:hover {
+  background: #374151;
+  border-color: #4b5563;
+}
+
+button:active {
+  background: #1f2937;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-panel);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}

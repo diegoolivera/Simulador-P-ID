@@ -32,14 +32,15 @@ describe('Physics tick', () => {
   it('closing outlet backs up liquid in vessel', () => {
     const { graph, valves } = makeTrain();
     commandValve(valves.get('OUT')!, 0, 'manual', 'test', [], 0);
-    stepPhysics(graph, valves, 5, { sourceFlow: 100, sourceLiquidFraction: 0.2 });
+    // Large source so liquid accumulation is observable within a few seconds
+    stepPhysics(graph, valves, 5, { sourceFlow: 1e9, sourceLiquidFraction: 0.2 });
     expect(graph.nodes.get('VES')!.liquidLevel).toBeGreaterThan(graph.nodes.get('VES')!.volume * 0.5);
   });
 
   it('ESD closes SDV and opens BDV', () => {
     const sdv = createValve('SDV-001B', 'sdv', 'FC');
-    const bdv = createValve('BDV-001A', 'bdv', 'FO');
-    const valves = new Map([['SDV-001B', sdv], ['BDV-001A', bdv]]);
+    const bdv = createValve('BDV-6505', 'bdv', 'FO');
+    const valves = new Map([['SDV-001B', sdv], ['BDV-6505', bdv]]);
     const graph = new PlantGraph();
     graph.addNode(node('VES'));
     stepPhysics(graph, valves, 2, { esdLevel: 1 });

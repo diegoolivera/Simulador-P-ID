@@ -18,6 +18,8 @@ const iaNode = (id: string, tag: string, kind: PlantNode['kind'], pressure = 0):
   separationEfficiency: 0,
   demisterDP: 0,
   fouling: 0,
+  gasFlow: 0,
+  liquidFlow: 0,
   inletIds: [],
   outletIds: [],
 });
@@ -43,9 +45,12 @@ export const instrumentAirEdges: PlantEdge[] = [
   pipe('recv-header', 'IA-RECV', 'IA-HEADER'),
 ];
 
+// Fresh clones per graph: physics mutates nodes (header pressure, scrubber level),
+// so handing the module-level objects straight to addNode would leak state across
+// init()/tests — the instrument-air header in particular never recharges after a loss.
 export function createInstrumentAirGraph(): PlantGraph {
   const graph = new PlantGraph();
-  for (const node of instrumentAirNodes) graph.addNode(node);
+  for (const node of structuredClone(instrumentAirNodes)) graph.addNode(node);
   for (const edge of instrumentAirEdges) graph.addEdge(edge);
   return graph;
 }
@@ -65,13 +70,15 @@ export const coolingWaterEdges: PlantEdge[] = [
 
 export function createCoolingWaterGraph(): PlantGraph {
   const graph = new PlantGraph();
-  for (const node of coolingWaterNodes) graph.addNode(node);
+  for (const node of structuredClone(coolingWaterNodes)) graph.addNode(node);
   for (const edge of coolingWaterEdges) graph.addEdge(edge);
   return graph;
 }
 
 export const fuelGasNodes: PlantNode[] = [
-  iaNode('FG-SUPPLY', 'FG-SUPPLY', 'source', 4.0),
+  iaNode('FG-SUPPLY', 'FG-SUPPLY', 'source', 80),
+  iaNode('SB-006', 'SB-006', 'vessel', 80),
+  iaNode('V-700', 'V-700', 'vessel', 7.0),
   iaNode('FG-001', 'FG-001', 'vessel', 3.5),
   iaNode('FG-REG', 'FG-REG', 'junction', INITIAL_FG_HEADER_PRESSURE),
   iaNode('FG-HEADER', 'FG-HEADER', 'header', INITIAL_FG_HEADER_PRESSURE),
@@ -81,7 +88,10 @@ export const fuelGasNodes: PlantNode[] = [
 ];
 
 export const fuelGasEdges: PlantEdge[] = [
-  pipe('fg-supply-scrubber', 'FG-SUPPLY', 'FG-001'),
+  // SDV-026B is the fuel-gas take-off isolation — target of the PAH-001 interlock.
+  { id: 'fg-supply-sb006', from: 'FG-SUPPLY', to: 'SB-006', kind: 'valved', conductance: 1, valveTag: 'SDV-026B' },
+  pipe('sb006-v700', 'SB-006', 'V-700'),
+  { id: 'v700-fg001', from: 'V-700', to: 'FG-001', kind: 'valved', conductance: 1, valveTag: 'PCV-700' },
   pipe('fg-scrubber-reg', 'FG-001', 'FG-REG'),
   pipe('fg-reg-header', 'FG-REG', 'FG-HEADER'),
   pipe('fg-header-pilot', 'FG-HEADER', 'FG-PILOT'),
@@ -91,7 +101,7 @@ export const fuelGasEdges: PlantEdge[] = [
 
 export function createFuelGasGraph(): PlantGraph {
   const graph = new PlantGraph();
-  for (const node of fuelGasNodes) graph.addNode(node);
+  for (const node of structuredClone(fuelGasNodes)) graph.addNode(node);
   for (const edge of fuelGasEdges) graph.addEdge(edge);
   return graph;
 }
@@ -113,7 +123,7 @@ export const electricalEdges: PlantEdge[] = [
 
 export function createElectricalGraph(): PlantGraph {
   const graph = new PlantGraph();
-  for (const node of electricalNodes) graph.addNode(node);
+  for (const node of structuredClone(electricalNodes)) graph.addNode(node);
   for (const edge of electricalEdges) graph.addEdge(edge);
   return graph;
 }

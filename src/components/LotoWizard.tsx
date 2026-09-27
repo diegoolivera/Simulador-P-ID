@@ -7,7 +7,7 @@ interface LotoConfig { nodeTag: Vessel; block: string[]; bypass: string; vents: 
 
 const CFG: Record<Vessel, LotoConfig> = {
   'SB-009': { nodeTag: 'SB-009', block: ['V-IN-009', 'V-OUT-009'], bypass: 'BYP-009', vents: [], drains: ['DR-009'] },
-  'SB-001': { nodeTag: 'SB-001', block: ['V-IN-001', 'V-OUT-001'], bypass: 'BYP-001', vents: ['BDV-001A'], drains: ['LV-001BA'] },
+  'SB-001': { nodeTag: 'SB-001', block: ['V-IN-001', 'V-OUT-001'], bypass: 'BYP-001', vents: ['BDV-6505'], drains: ['LV-6505'] },
   'SB-004': { nodeTag: 'SB-004', block: ['V-IN-004', 'SDV-OUT-004'], bypass: 'BYP-004', vents: ['VT-004'], drains: ['LV-004'] },
 };
 

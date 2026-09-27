@@ -19,7 +19,7 @@ const alarm = (id: string, priority: 'HIGH' | 'LOW', desc: string, value: number
 describe('AlarmBanner', () => {
   it('acknowledges and shelves alarms', () => {
     const sim = useSimulationStore.getState();
-    sim.activeAlarms.push(alarm('PAH-101', 'HIGH', 'High pressure', 80, 75));
+    sim.activeAlarms.push(alarm('PAH-6505', 'HIGH', 'High pressure', 92, 89));
     sim.activeAlarms.push(alarm('PAL-101', 'LOW', 'Low pressure', 55, 60));
     render(<AlarmBanner />);
     fireEvent.click(screen.getAllByText('Ack')[0]);
@@ -32,7 +32,7 @@ describe('AlarmBanner', () => {
 describe('LoopPanel', () => {
   it('toggles loop mode and setpoint', () => {
     render(<LoopPanel />);
-    expect(screen.getByText('PIC-101 (PIC)')).toBeInTheDocument();
+    expect(screen.getByText('PIC-6505')).toBeInTheDocument();
     fireEvent.click(screen.getAllByText('AUTO')[0]);
     expect(useSimulationStore.getState().loops[0].mode).toBe('MAN');
     fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '65' } });

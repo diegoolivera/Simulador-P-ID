@@ -79,9 +79,34 @@ export function setLock(valve: Valve, locked: boolean): void {
   }
 }
 
+/**
+ * SDV-007 is the instrument-air skid isolation itself: it is the CAUSE of an air
+ * loss, not an air-loaded actuator downstream of it. Failing it closed here
+ * would make the loss self-latching (header can never recharge), so it stays
+ * under operator control.
+ */
+const AIR_ISOLATION_TAGS = new Set(['SDV-007']);
+
 export function applyAirFailure(valves: Iterable<Valve>, audit: AuditEvent[], t: number): void {
   for (const v of valves) {
+    if (AIR_ISOLATION_TAGS.has(v.tag)) continue;
     const target = v.failPosition === 'FO' ? 1 : v.failPosition === 'FL' ? v.position : 0;
     commandValve(v, target, 'esd', 'Instrument air failure', audit, t);
+  }
+}
+
+/**
+ * Hands control back to the loops/operator after an `esd`-priority fail-safe
+ * command (air failure or ESD) has gone away. Without this the priority gate
+ * latches forever and no loop can ever move its valve again. Releasing to
+ * 'manual' (the lowest rank) restores the factory state, so both `auto` loop
+ * commands and operator `manual` commands are accepted again.
+ *
+ * Takes the Map (not an Iterable) on purpose: iterating a Map directly yields
+ * [key, value] pairs, which silently makes this a no-op.
+ */
+export function releaseFailSafe(valves: Map<string, Valve>): void {
+  for (const v of valves.values()) {
+    if (v.lastPriority === 'esd') v.lastPriority = 'manual';
   }
 }

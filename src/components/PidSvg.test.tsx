@@ -18,12 +18,10 @@ describe('PidSvg', () => {
     expect(screen.getByText('V-IN-009')).toBeInTheDocument();
   });
 
-  it('commands a valve on click', () => {
+  it('selects a valve on click', () => {
     render(<PidSvg />);
-    const sim = useSimulationStore.getState();
-    sim.valves.get('V-IN-009')!.targetPosition = 1;
     fireEvent.click(screen.getByText('V-IN-009'));
-    expect(sim.valves.get('V-IN-009')?.targetPosition).toBe(0);
+    expect(useUiStore.getState().selectedTag).toBe('V-IN-009');
   });
 
   it('scrolls to selected tag', () => {

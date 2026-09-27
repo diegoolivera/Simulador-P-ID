@@ -34,7 +34,7 @@ describe('Valve state machine', () => {
 
   it('air failure drives FC closed and FO open', () => {
     const fc = createValve('XV-001', 'manual', 'FC');
-    const fo = createValve('BDV-001A', 'bdv', 'FO');
+    const fo = createValve('BDV-6505', 'bdv', 'FO');
     const audit: AuditEvent[] = [];
     applyAirFailure([fc, fo], audit, 0);
     expect(fc.targetPosition).toBe(0);

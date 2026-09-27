@@ -6,7 +6,7 @@ import type { PhysicsOptions } from '../engine/physics';
 import { SCENARIO_CATALOG } from '../scenarios/catalog';
 import { useEvalStore } from './evalStore';
 
-export type TriggerKind = 'slug' | 'esd' | 'sand' | 'air';
+export type TriggerKind = 'slug' | 'esd' | 'sand' | 'air' | 'inlet';
 
 export interface ScenarioTrigger {
   at: number;
@@ -61,6 +61,9 @@ const fire = (trigger: ScenarioTrigger, options: Partial<PhysicsOptions>) => {
     options.instrumentAirOk = false;
   } else if (trigger.kind === 'sand') {
     options.sourceSandFraction = trigger.payload.fraction as number;
+  } else if (trigger.kind === 'inlet') {
+    // Step change on the plant inlet (exam Nivel 2: +20% flow disturbance).
+    options.sourceFlow = trigger.payload.sourceFlow as number;
   }
 };
 
@@ -100,6 +103,7 @@ export const useScenarioStore = create<State>()((set, get) => ({
     if (state.status !== 'running' || !state.active) return;
     const elapsed = state.elapsed + dt;
     const opts = { ...state.currentOptions };
+    delete opts.slug; // slug is a one-tick impulse; re-fired only by a new trigger
     let index = state.triggerIndex;
     while (index < state.active.triggers.length && state.active.triggers[index].at <= elapsed) {
       fire(state.active.triggers[index], opts);

@@ -30,8 +30,16 @@ export interface PlantNode {
   separationEfficiency: number;
   demisterDP: number;
   fouling: number;
+  gasFlow: number;
+  liquidFlow: number;
   inletIds: string[];
   outletIds: string[];
+  /** Optional compressor head added to upstream pressure (kg/cm2). */
+  boost?: number;
+  /** Liquid drain rate (1/day) through liquid lines; physics defaults to LIQ_DRAIN_K. */
+  drainK?: number;
+  /** Liquid generated per sm3 gas processed (condensation/rich-glycol pickup in contactors). */
+  condensateK?: number;
 }
 
 export interface PlantEdge {
@@ -60,6 +68,12 @@ export interface Loop {
   id: string;
   tag: string;
   kind: LoopKind;
+  /**
+   * Controller action: 'direct' raises output when PV is below setpoint
+   * (inlet valves: opening raises PV); 'reverse' raises output when PV is
+   * above setpoint (drain/throttle valves: opening lowers PV).
+   */
+  action: 'direct' | 'reverse';
   setpoint: number;
   mode: LoopMode;
   output: number;
@@ -71,7 +85,7 @@ export interface Loop {
   outputMax: number;
   valveTag: string;
   pvNodeTag: string;
-  pvField: 'pressure' | 'liquidLevel';
+  pvField: 'pressure' | 'liquidLevel' | 'gasFlow';
 }
 
 export interface Alarm {

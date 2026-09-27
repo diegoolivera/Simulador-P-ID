@@ -9,27 +9,27 @@ const node = (id: string, kind: PlantNode['kind'] = 'vessel') =>
 describe('Alarm evaluator', () => {
   it('triggers high and high-high pressure alarms', () => {
     const graph = new PlantGraph();
-    graph.addNode(node('SB-001'));
-    graph.nodes.get('SB-001')!.pressure = 86;
+    graph.addNode(node('V-6505'));
+    graph.nodes.get('V-6505')!.pressure = 96;
     const alarms = evaluateAlarms(graph, PHASE1_ALARM_RULES, [], 0);
-    expect(alarms.some((a) => a.id === 'PAH-101')).toBe(true);
-    expect(alarms.some((a) => a.id === 'PAHH-101')).toBe(true);
+    expect(alarms.some((a) => a.id === 'PAH-6505')).toBe(true);
+    expect(alarms.some((a) => a.id === 'PAHH-6505')).toBe(true);
   });
 
   it('clears alarm when value returns to normal', () => {
     const graph = new PlantGraph();
-    graph.addNode(node('SB-001'));
-    graph.nodes.get('SB-001')!.pressure = 86;
+    graph.addNode(node('V-6505'));
+    graph.nodes.get('V-6505')!.pressure = 96;
     let alarms = evaluateAlarms(graph, PHASE1_ALARM_RULES, [], 0);
-    graph.nodes.get('SB-001')!.pressure = 50;
+    graph.nodes.get('V-6505')!.pressure = 89;
     alarms = evaluateAlarms(graph, PHASE1_ALARM_RULES, alarms, 1);
-    expect(alarms.some((a) => a.id === 'PAH-101')).toBe(false);
+    expect(alarms.some((a) => a.id === 'PAH-6505')).toBe(false);
   });
 
   it('acknowledge preserves alarm entry', () => {
     const graph = new PlantGraph();
-    graph.addNode(node('SB-001'));
-    graph.nodes.get('SB-001')!.pressure = 86;
+    graph.addNode(node('V-6505'));
+    graph.nodes.get('V-6505')!.pressure = 96;
     const alarms = evaluateAlarms(graph, PHASE1_ALARM_RULES, [], 0);
     acknowledgeAlarm(alarms[0]);
     expect(alarms[0].acknowledged).toBe(true);
@@ -37,7 +37,7 @@ describe('Alarm evaluator', () => {
   });
 
   it('shelves non-critical alarms', () => {
-    const alarm = { id: 'PAL-101', tag: 'PAL-101', description: 'Low pressure', priority: 'LOW' as const, active: true, acknowledged: false, t: 0, processValue: 55, threshold: 60, shelvedUntil: undefined };
+    const alarm = { id: 'PAL-6505', tag: 'PAL-6505', description: 'Low pressure', priority: 'LOW' as const, active: true, acknowledged: false, t: 0, processValue: 80, threshold: 85, shelvedUntil: undefined };
     shelveAlarm(alarm, 0, 10);
     expect(alarm.shelvedUntil).toBe(10);
   });

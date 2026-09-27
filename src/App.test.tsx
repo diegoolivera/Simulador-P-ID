@@ -5,13 +5,15 @@ import { act } from 'react';
 import App from './App';
 import { useSimulationStore } from './stores/simulationStore';
 import { useScenarioStore } from './stores/scenarioStore';
+import { useEvalStore } from './stores/evalStore';
 import { useUiStore } from './stores/uiStore';
 
 beforeEach(() => {
   act(() => {
     useSimulationStore.getState().init();
     useScenarioStore.getState().reset();
-    useUiStore.setState({ view: 'scada', selectedTag: null, dialog: null, theme: 'light', tooltip: null });
+    useEvalStore.getState().startScenario();
+    useUiStore.setState({ view: 'scada', selectedTag: null, dialog: null, theme: 'light', tooltip: null, editMode: false });
   });
   Element.prototype.scrollIntoView = vi.fn();
 });
@@ -56,5 +58,40 @@ describe('App', () => {
     await waitFor(() => {
       expect(useSimulationStore.getState().esdLevel).toBe(0);
     });
+  });
+});
+
+describe('App scenario wiring', () => {
+  it('boots with a scenario loaded so physics gets real boundary conditions', async () => {
+    render(<App />);
+    await waitFor(() => expect(useScenarioStore.getState().activeId).toBe('normal-operation'));
+    expect(useScenarioStore.getState().status).toBe('running');
+  });
+
+  it('opens the LOTO wizard from the header', async () => {
+    render(<App />);
+    await waitFor(() => expect(useScenarioStore.getState().activeId).not.toBeNull());
+    fireEvent.click(screen.getByText('LOTO'));
+    expect(screen.getByLabelText('LOTO wizard')).toBeInTheDocument();
+  });
+
+  it('switches to the field-rounds and report views', async () => {
+    render(<App />);
+    await waitFor(() => expect(useScenarioStore.getState().activeId).not.toBeNull());
+    fireEvent.click(screen.getByText('Rondas'));
+    expect(screen.getByLabelText('Field rounds')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Informe'));
+    expect(screen.getByLabelText('Scenario report')).toBeInTheDocument();
+  });
+
+  it('reloads the selected scenario on Reset', async () => {
+    render(<App />);
+    await waitFor(() => expect(useScenarioStore.getState().activeId).toBe('normal-operation'));
+    const select = screen.getByLabelText('Escenario');
+    fireEvent.change(select, { target: { value: 'slug-response' } });
+    expect(useScenarioStore.getState().activeId).toBe('slug-response');
+    fireEvent.click(screen.getByText('Reset'));
+    expect(useScenarioStore.getState().activeId).toBe('slug-response');
+    expect(useScenarioStore.getState().elapsed).toBe(0);
   });
 });

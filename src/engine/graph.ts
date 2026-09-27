@@ -31,6 +31,30 @@ export class PlantGraph {
     this.topoCache = null;
   }
 
+  removeEdge(id: string): void {
+    const edge = this.edgeById.get(id);
+    if (!edge) return;
+    this.edges.splice(this.edges.indexOf(edge), 1);
+    this.edgeById.delete(id);
+    const list = this.adjacency.get(edge.from)!;
+    const idx = list.indexOf(edge.to);
+    if (idx >= 0) list.splice(idx, 1);
+    this.dirtyEdges.delete(id);
+    this.topoCache = null;
+  }
+
+  removeNode(id: string): void {
+    for (const edge of [...this.edges]) {
+      if (edge.from === id || edge.to === id) {
+        this.removeEdge(edge.id);
+      }
+    }
+    this.nodes.delete(id);
+    this.adjacency.delete(id);
+    this.dirtyNodes.delete(id);
+    this.topoCache = null;
+  }
+
   getTopologicalOrder(): readonly string[] {
     if (!this.topoCache) {
       this.topoCache = Object.freeze(this.computeTopologicalOrder());

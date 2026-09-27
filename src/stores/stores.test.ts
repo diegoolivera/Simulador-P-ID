@@ -54,4 +54,16 @@ describe('stores', () => {
     ui.openDialog('esd');
     expect(useUiStore.getState().dialog).toBe('esd');
   });
+
+  it('operator boundary overrides win over the scenario defaults', () => {
+    const sim = useSimulationStore.getState();
+    expect(useScenarioStore.getState().loadScenario('normal-operation')).toBe(true);
+    sim.setScenarioOptions({ sourcePressure: 40, sourceFlow: 400_000 });
+    sim.setRunning(true);
+    sim.tick(1);
+    const well = useSimulationStore.getState().graph.nodes.get('WELL-1')!;
+    // Scenario base says 95 kg/cm2; without the override the slider would be dead.
+    expect(well.pressure).toBe(40);
+    expect(useScenarioStore.getState().getPhysicsOptions().sourcePressure).toBe(95);
+  });
 });
