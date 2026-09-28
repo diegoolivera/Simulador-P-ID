@@ -24,7 +24,7 @@ export function PiPanel() {
 
   return (
     <div aria-label="Process values" style={{ padding: 10, background: 'var(--bg-panel-elevated)', border: '1px solid var(--border-panel)', borderRadius: 6, minWidth: 180 }}>
-      <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-primary)' }}>{selectedTag ?? 'Sin selecci��n'}</h3>
+      <h3 style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-primary)' }}>{selectedTag ?? 'Sin selección'}</h3>
       {node ? (
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
           {row('Pressure', node.pressure.toFixed(2))}
@@ -35,7 +35,7 @@ export function PiPanel() {
           {row('Demister dP', node.demisterDP.toFixed(2))}
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Seleccionǭ un elemento en el P&ID.</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Seleccioná un elemento en el P&ID.</div>
       )}
     </div>
   );
