@@ -5,6 +5,7 @@ import { valveTypeFromTag } from '../engine/valve';
 import { Valve } from './Valve';
 import { Vessel } from './Vessel';
 import { Pipe } from './Pipe';
+import { edgeSegments } from './edgeRouting';
 import { SignalLine } from './SignalLine';
 import { TieInLine } from './TieInLine';
 import { Palette } from './Palette';
@@ -453,9 +454,22 @@ export function PidSvg() {
             mapped to the canvas by this one transform. */}
         <g transform={`translate(${viewport.tx} ${viewport.ty}) scale(${viewport.scale})`}>
       {allGraphs.flatMap((g) =>
-        g.edges
-          .filter((e) => items[e.from] && items[e.to])
-          .map((e) => <Pipe key={e.id} from={items[e.from]} to={items[e.to]} flowing={flowingEdges.has(e.id)} />)
+        g.edges.flatMap((e) => {
+          // A valve is named by the edge, not an endpoint of it: route the pipe
+          // through the valve glyph so the symbol sits on its line. A missing
+          // valve item falls back to one straight segment (edgeSegments).
+          const segments = edgeSegments(e, items);
+          if (!segments) return [];
+          const flowing = flowingEdges.has(e.id);
+          return segments.map((segment, index) => (
+            <Pipe
+              key={segments.length > 1 ? `${e.id}-${index}` : e.id}
+              from={segment.from}
+              to={segment.to}
+              flowing={flowing}
+            />
+          ));
+        })
       )}
         {/* Instrument signal annotations: a separate dashed layer, not process
             edges. Drawn only when both endpoints are present in this template,

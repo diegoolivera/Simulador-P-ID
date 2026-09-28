@@ -16,6 +16,25 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
+/**
+ * Every line that is NOT part of an item's own glyph. Process pipes, instrument
+ * signal lines and utility tie-ins all draw outside the `[data-tag]` groups, so
+ * excluding glyph internals leaves exactly the connection layer.
+ */
+const connectionLines = (container: HTMLElement): SVGLineElement[] =>
+  Array.from(container.querySelectorAll('line')).filter((line) => !line.closest('[data-tag]'));
+
+const pointKey = (p: { x: number; y: number }) => `${p.x},${p.y}`;
+
+const lineEndpointKeys = (line: SVGLineElement): string[] =>
+  [`${line.getAttribute('x1')},${line.getAttribute('y1')}`, `${line.getAttribute('x2')},${line.getAttribute('y2')}`].sort();
+
+/** True when a connection line is drawn with exactly these two endpoints. */
+const hasSegment = (container: HTMLElement, a: { x: number; y: number }, b: { x: number; y: number }): boolean => {
+  const wanted = [pointKey(a), pointKey(b)].sort().join('|');
+  return connectionLines(container).some((line) => lineEndpointKeys(line).join('|') === wanted);
+};
+
 describe('PidSvg', () => {
   it('renders plant items from layout', () => {
     render(<PidSvg />);
@@ -149,5 +168,60 @@ describe('PidSvg', () => {
 
     fireEvent.click(screen.getByLabelText('Ajustá a pantalla'));
     expect(screen.getByLabelText('Nivel de zoom')).toHaveTextContent('100%');
+  });
+
+  it('routes a valved edge through its valve item instead of a straight line past it', () => {
+    useUiStore.setState({ template: 'basic' });
+    const { container } = render(<PidSvg />);
+    const items = TEMPLATES.basic.items;
+
+    // `manifold-sb009` names V-IN-009 while running MANIFOLD -> SB-009.
+    expect(hasSegment(container, items['MANIFOLD'], items['V-IN-009'])).toBe(true);
+    expect(hasSegment(container, items['V-IN-009'], items['SB-009'])).toBe(true);
+    // The old single straight line that ignored the valve must be gone.
+    expect(hasSegment(container, items['MANIFOLD'], items['SB-009'])).toBe(false);
+  });
+
+  it('draws a straight pipe when a valved edge names a valve with no item in the template', () => {
+    useUiStore.setState({ template: 'basic' });
+    localStorage.setItem(
+      'sbp-layout-basic',
+      JSON.stringify({
+        items: {
+          DISPATCH: { ...TEMPLATES.basic.items['DISPATCH'] },
+          'DRAIN-PIT': { ...TEMPLATES.basic.items['DRAIN-PIT'] },
+        },
+        edges: [{ id: 'ghost-valve-edge', from: 'DISPATCH', to: 'DRAIN-PIT', kind: 'valved', valveTag: 'GHOST-VALVE' }],
+      })
+    );
+    const { container } = render(<PidSvg />);
+
+    expect(useSimulationStore.getState().graph.edges.find((e) => e.id === 'ghost-valve-edge')?.valveTag).toBe('GHOST-VALVE');
+    const items = TEMPLATES.basic.items;
+    expect(hasSegment(container, items['DISPATCH'], items['DRAIN-PIT'])).toBe(true);
+  });
+});
+
+/**
+ * Permanent guard for the "elemento suelto" defect: every symbol in every
+ * template must be attached to at least one line (a process pipe routed through
+ * it, an instrument signal, or a utility tie-in). A floating valve is exactly
+ * the regression this catches. There are deliberately NO declared exceptions.
+ */
+describe.each(['basic', 'medium', 'complex'] as const)('line coverage for the %s template', (template) => {
+  it('draws every item in the template with at least one line', () => {
+    useUiStore.setState({ template });
+    const { container } = render(<PidSvg />);
+
+    const endpoints = new Set<string>();
+    for (const line of connectionLines(container)) {
+      endpoints.add(`${line.getAttribute('x1')},${line.getAttribute('y1')}`);
+      endpoints.add(`${line.getAttribute('x2')},${line.getAttribute('y2')}`);
+    }
+
+    const orphans = Object.entries(TEMPLATES[template].items)
+      .filter(([, item]) => !endpoints.has(`${item.x},${item.y}`))
+      .map(([tag]) => tag);
+    expect(orphans).toEqual([]);
   });
 });
