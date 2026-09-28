@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { PidSvg } from './components/PidSvg';
 import { AlarmBanner } from './components/AlarmBanner';
 import { PiPanel } from './components/PiPanel';
@@ -28,6 +28,7 @@ export default function App() {
   const { openDialog, editMode, setEditMode, theme, setTheme, template, setTemplate, view, setView } = useUiStore();
   const activeId = useScenarioStore((s) => s.activeId);
   const loadScenario = useScenarioStore((s) => s.loadScenario);
+  const [engineError, setEngineError] = useState<string | null>(null);
 
   // The plant only runs with scenario boundary conditions (source pressure/flow),
   // so every fresh boot must load a scenario or physics falls back to defaults.
@@ -38,12 +39,22 @@ export default function App() {
 
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => tick(1), 400);
+    const id = setInterval(() => {
+      try {
+        tick(1);
+      } catch (err) {
+        // An uncaught throw inside the timer used to freeze the plant while the
+        // header kept showing the green "Running" dot. Stop and surface it.
+        setRunning(false);
+        setEngineError(err instanceof Error ? err.message : String(err));
+      }
+    }, 400);
     return () => clearInterval(id);
-  }, [running, tick]);
+  }, [running, tick, setRunning]);
 
   const reset = () => {
     init();
+    setEngineError(null);
     loadScenario(activeId ?? DEFAULT_SCENARIO);
   };
 
@@ -80,7 +91,7 @@ export default function App() {
             <button onClick={() => openDialog('loto')}>LOTO</button>
             <button onClick={() => openDialog('esd')}>ESD</button>
             <button onClick={() => setEditMode(!editMode)} style={{ background: editMode ? 'var(--accent)' : undefined, color: editMode ? '#fff' : undefined, borderColor: editMode ? 'var(--accent)' : undefined }}>
-              {editMode ? 'Salir edici��n' : 'Editar P&ID'}
+              {editMode ? 'Salir de edición' : 'Editar P&ID'}
             </button>
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? 'Claro' : 'Oscuro'}
@@ -89,6 +100,12 @@ export default function App() {
         </div>
       </header>
       <AlarmBanner />
+      {engineError && (
+        <div role="alert" style={{ padding: '6px 16px', background: 'var(--alarm-critical)', color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>Simulación detenida por un error del motor: {engineError}. Hacé Reset para continuar.</span>
+          <button onClick={() => setEngineError(null)} style={{ fontSize: 11 }}>Descartar</button>
+        </div>
+      )}
       {view === 'scada' && (
         <main style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-canvas)' }}>
