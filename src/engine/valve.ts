@@ -76,6 +76,12 @@ export function setLock(valve: Valve, locked: boolean): void {
   if (locked) {
     valve.targetPosition = valve.position;
     valve.lastPriority = 'loto';
+  } else {
+    // Release the priority latch too. `loto` is rank 100, so leaving it in
+    // lastPriority makes commandValve reject every later command — including
+    // ESD — and nothing else ever rewrites it. Same rule as releaseFailSafe:
+    // drop to the lowest rank so loops and the operator are accepted again.
+    valve.lastPriority = 'manual';
   }
 }
 

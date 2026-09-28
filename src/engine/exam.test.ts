@@ -181,6 +181,12 @@ describe('Level 3 — domino effects (interlock, air failure, service load)', ()
     expect(valve('SDV-026B').position).toBe(0);
     expect(valve('SDV-026B').lastPriority).toBe('interlock');
 
+    // The latch is the whole point of an interlock: while PAH-001 is active the
+    // operator must not be able to hand-open the skid isolation.
+    expect(sim().commandValve('SDV-026B', 1, 'manual', 'operator override attempt')).toBe(false);
+    expect(valve('SDV-026B').targetPosition).toBe(0);
+    expect(valve('SDV-026B').position).toBe(0);
+
     // Domino: no supply -> header and V-700 collapse -> low-pressure alarm.
     run(30);
     expect(fgNode('FG-SUPPLY').gasFlow).toBe(0);
@@ -193,7 +199,7 @@ describe('Level 3 — domino effects (interlock, air failure, service load)', ()
     sim().commandValve('V-IN-004', 1, 'manual', 'restore SB-001 outlet');
     run(60);
     expect(valve('SDV-026B').lastPriority).not.toBe('interlock');
-    sim().commandValve('SDV-026B', 1, 'manual', 'reset fuel-gas skid');
+    expect(sim().commandValve('SDV-026B', 1, 'manual', 'reset fuel-gas skid')).toBe(true);
     run(10);
     expect(valve('SDV-026B').position).toBe(1);
     expect(fgNode('FG-HEADER').pressure).toBeGreaterThan(2);

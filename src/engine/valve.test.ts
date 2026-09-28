@@ -32,6 +32,20 @@ describe('Valve state machine', () => {
     expect(commandValve(v, 0, 'esd', 'ESD1', [], 0)).toBe(false);
   });
 
+  it('unlocking releases the loto priority latch', () => {
+    const v = makeValve();
+    setLock(v, true);
+    setLock(v, false);
+    // lastPriority used to stay at 'loto' (rank 100), so every later command —
+    // manual, auto, interlock and ESD alike — was rejected for the rest of the
+    // run and only a full reset could recover the valve.
+    expect(v.locked).toBe(false);
+    expect(v.lastPriority).toBe('manual');
+    expect(commandValve(v, 0.25, 'manual', 'operator', [], 0)).toBe(true);
+    expect(commandValve(v, 0, 'esd', 'ESD1', [], 0)).toBe(true);
+    expect(v.targetPosition).toBe(0);
+  });
+
   it('air failure drives FC closed and FO open', () => {
     const fc = createValve('XV-001', 'manual', 'FC');
     const fo = createValve('BDV-6505', 'bdv', 'FO');
