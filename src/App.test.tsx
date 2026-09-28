@@ -21,7 +21,7 @@ beforeEach(() => {
 describe('App', () => {
   it('renders the shell and toggles the simulation', async () => {
     render(<App />);
-    expect(screen.getByText('Simulador Baterista Profesional')).toBeInTheDocument();
+    expect(screen.getByText('Simulador P&ID')).toBeInTheDocument();
 
     act(() => {
       fireEvent.click(screen.getByText('Start'));
@@ -58,6 +58,25 @@ describe('App', () => {
     await waitFor(() => {
       expect(useSimulationStore.getState().esdLevel).toBe(0);
     });
+  });
+
+  it('tracks the store theme on the document root and toggles it from the header', async () => {
+    render(<App />);
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('light');
+    });
+
+    const toggle = screen.getByRole('button', { name: 'Oscuro' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('dark');
+    });
+    expect(useUiStore.getState().theme).toBe('dark');
+    expect(screen.getByRole('button', { name: 'Claro' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
 

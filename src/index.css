@@ -25,6 +25,44 @@
   --valve-open: #22c55e;
   --valve-closed: #94a3b8;
   --valve-locked: #f59e0b;
+  /* Interaction surfaces (button hover/active, scrollbar) so the light theme
+     does not inherit hardcoded dark values. */
+  --bg-hover: #374151;
+  --bg-active: #1f2937;
+  --border-hover: #4b5563;
+  --scroll-thumb: #4b5563;
+  --scroll-thumb-hover: #6b7280;
+}
+
+/*
+ * Light theme. Applied at the document root (and mirrored on the App root div)
+ * via `data-theme`. Colours are chosen for contrast on white, not inverted from
+ * the dark palette: the alarm/valve/pipe hues stay distinguishable on a light
+ * canvas.
+ */
+[data-theme='light'] {
+  --bg-canvas: #f1f5f9;
+  --bg-panel: #ffffff;
+  --bg-panel-elevated: #f8fafc;
+  --border-panel: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --alarm-critical: #dc2626;
+  --alarm-high: #b45309;
+  --alarm-low: #1d4ed8;
+  --ok: #15803d;
+  --warning: #a16207;
+  --pipe: #475569;
+  --valve-open: #15803d;
+  --valve-closed: #64748b;
+  --valve-locked: #b45309;
+  --bg-hover: #e2e8f0;
+  --bg-active: #cbd5e1;
+  --border-hover: #94a3b8;
+  --scroll-thumb: #94a3b8;
+  --scroll-thumb-hover: #64748b;
 }
 
 * {
@@ -52,12 +90,12 @@ button {
 }
 
 button:hover {
-  background: #374151;
-  border-color: #4b5563;
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
 }
 
 button:active {
-  background: #1f2937;
+  background: var(--bg-active);
 }
 
 button.primary {
@@ -80,10 +118,10 @@ button.primary:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: var(--scroll-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: var(--scroll-thumb-hover);
 }

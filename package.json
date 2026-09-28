@@ -1,5 +1,5 @@
 {
-  "name": "simulador-baterista-profesional",
+  "name": "simulador-pid",
   "private": true,
   "version": "0.1.0",
   "type": "module",

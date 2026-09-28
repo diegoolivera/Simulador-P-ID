@@ -37,6 +37,12 @@ export default function App() {
     loadScenario(DEFAULT_SCENARIO);
   }, [init, loadScenario]);
 
+  // Apply the theme at the document root so `:root`-level selectors (and the
+  // html/body background) follow it, not just the App subtree.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => {
@@ -72,7 +78,7 @@ export default function App() {
       <header style={{ padding: '10px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-panel)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 10, height: 10, borderRadius: '50%', background: running ? 'var(--ok)' : 'var(--alarm-critical)', boxShadow: `0 0 8px ${running ? 'var(--ok)' : 'var(--alarm-critical)'}` }} />
-          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: 0.5 }}>Simulador Baterista Profesional</h1>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: 0.5 }}>Simulador P&amp;ID</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ScenarioSelector />
@@ -93,7 +99,11 @@ export default function App() {
             <button onClick={() => setEditMode(!editMode)} style={{ background: editMode ? 'var(--accent)' : undefined, color: editMode ? '#fff' : undefined, borderColor: editMode ? 'var(--accent)' : undefined }}>
               {editMode ? 'Salir de edición' : 'Editar P&ID'}
             </button>
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+              aria-pressed={theme === 'light'}
+            >
               {theme === 'dark' ? 'Claro' : 'Oscuro'}
             </button>
           </div>
