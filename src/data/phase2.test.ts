@@ -6,6 +6,7 @@ import {
   createFuelGasGraph,
   createInstrumentAirGraph,
   electricalNodes,
+  fuelGasEdges,
   fuelGasNodes,
   instrumentAirEdges,
   instrumentAirNodes,
@@ -33,6 +34,11 @@ describe('Phase 2 instrument air data', () => {
       }
     }
   });
+
+  it('wires SDV-007 onto a real line', () => {
+    const edge = instrumentAirEdges.find((e) => e.from === 'SDV-007' || e.to === 'SDV-007' || e.valveTag === 'SDV-007');
+    expect(edge).toBeDefined();
+  });
 });
 
 describe('Phase 2 cooling water data', () => {
@@ -58,6 +64,11 @@ describe('Phase 2 fuel gas data', () => {
     for (const node of fuelGasNodes) {
       expect(items[node.tag], `missing layout for ${node.tag}`).toBeDefined();
     }
+  });
+
+  it('wires SDV-006A onto a real line', () => {
+    const edge = fuelGasEdges.find((e) => e.from === 'SDV-006A' || e.to === 'SDV-006A' || e.valveTag === 'SDV-006A');
+    expect(edge).toBeDefined();
   });
 });
 

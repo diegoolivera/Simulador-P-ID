@@ -27,6 +27,10 @@ export const phase1Nodes: PlantNode[] = [
   baseNode('SB-001', 'SB-001', 'vessel', 93.5),    // Slug catcher
   { ...baseNode('V-6505', 'V-6505', 'vessel', 89), liquidLevel: 50 }, // Separador principal (LIC-6505 SP)
   { ...baseNode('SB-004', 'SB-004', 'vessel', 85), liquidLevel: 50 }, // Scrubber (LIC-004 SP)
+  // Intermediate node between the two block valves wired in SERIES on the
+  // SB-004 outlet (SDV-OUT-004 -> SB-004-OUT -> SDV-031A). A short line segment
+  // between the valves; its pressure settles where the two valve flows meet.
+  baseNode('SB-004-OUT', 'SB-004-OUT', 'junction', 72),
   // Motocompresor adds 40 kg/cm2 of head downstream of the suction scrubber.
   { ...baseNode('KG-31', 'KG-31', 'vessel', 49), boost: 40 },
   { ...baseNode('TC-11', 'TC-11', 'vessel', 80), condensateK: 1e-5 }, // Contactora TEG 1: ~12.5 m3/d condensate at 1.25 MMsm3/d
@@ -34,7 +38,6 @@ export const phase1Nodes: PlantNode[] = [
   baseNode('SALES-GAS', 'SALES-GAS', 'sink', 80),     // Gas de venta
   baseNode('COMPRESSION', 'COMPRESSION', 'sink', 80),
   baseNode('FLARE-HEADER', 'FLARE-HEADER', 'sink', 5),
-  baseNode('FLARE-TIP', 'FLARE-TIP', 'sink', 0),
   baseNode('TK-001', 'TK-001', 'vessel', 3.5),      // Líquidos de SB-001
   baseNode('TK-004', 'TK-004', 'vessel', 2.5),      // Líquidos de V-6505/SB-004
   { ...baseNode('ST-002', 'ST-002', 'vessel', 2.5), liquidLevel: 50 },  // Separador líquidos 1 (LIC-002 SP)
@@ -90,7 +93,15 @@ export const phase1Edges: PlantEdge[] = [
   valved('psv6505-flare', 'V-6505', 'FLARE-HEADER', 'PSV-6505AD/BD'),
   control('lv6505-tk001', 'V-6505', 'TK-001', 'LV-6505'),
   valved('sdv001b-drain', 'TK-001', 'DRAIN-PIT', 'SDV-001B'),
-  valved('sb004-kg31', 'SB-004', 'KG-31', 'SDV-031A', 3.7),
+  // SB-004 outlet is a double block in SERIES, not two parallel paths: closing
+  // either SDV-OUT-004 or SDV-031A isolates the scrubber. Resistance divides the
+  // flow (Q = c*K_Q*dp / (R*sqrt(dp+0.2))), so the segments do not simply add.
+  // The outlet used to be a single edge with R = 3.7; SDV-031A keeps that value
+  // and SDV-OUT-004 (a full-bore on/off block valve) adds a small R = 0.35.
+  // Verified against the exam: with both open KG-31 settles at ~49.9 kg/cm2
+  // (the single-edge design settled at ~50.4), inside the required 45-55 band.
+  valved('sb004-sb004out', 'SB-004', 'SB-004-OUT', 'SDV-OUT-004', 0.35),
+  valved('sb004out-kg31', 'SB-004-OUT', 'KG-31', 'SDV-031A', 3.7),
   valved('kg31-compression', 'KG-31', 'COMPRESSION', 'SDV-032A'),
   control('bdv031-flare', 'KG-31', 'FLARE-HEADER', 'BDV-031B'),
   control('kg31-tc11', 'KG-31', 'TC-11', 'FV-185'),

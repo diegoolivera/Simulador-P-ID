@@ -29,6 +29,8 @@ export const instrumentAirNodes: PlantNode[] = [
   iaNode('IA-COMP-B', 'IA-COMP-B', 'source', INITIAL_IA_HEADER_PRESSURE),
   iaNode('IA-RECV', 'IA-RECV', 'vessel', INITIAL_IA_HEADER_PRESSURE),
   iaNode('IA-HEADER', 'IA-HEADER', 'header', INITIAL_IA_HEADER_PRESSURE),
+  // Anchor for the skid 19/20 isolation valve so its glyph sits on a real line.
+  iaNode('SDV-007', 'SDV-007', 'junction'),
 ];
 
 const pipe = (id: string, from: string, to: string): PlantEdge => ({
@@ -43,6 +45,9 @@ export const instrumentAirEdges: PlantEdge[] = [
   pipe('compA-recv', 'IA-COMP-A', 'IA-RECV'),
   pipe('compB-recv', 'IA-COMP-B', 'IA-RECV'),
   pipe('recv-header', 'IA-RECV', 'IA-HEADER'),
+  // SDV-007 isolates the skids from the air header: it lives on the branch, not
+  // on the main compressor train.
+  { id: 'sdv007-header', from: 'SDV-007', to: 'IA-HEADER', kind: 'valved', conductance: 1, valveTag: 'SDV-007' },
 ];
 
 // Fresh clones per graph: physics mutates nodes (header pressure, scrubber level),
@@ -76,6 +81,8 @@ export function createCoolingWaterGraph(): PlantGraph {
 }
 
 export const fuelGasNodes: PlantNode[] = [
+  // Anchor for the plant-outlet take-off valve so its glyph sits on a real line.
+  iaNode('SDV-006A', 'SDV-006A', 'junction'),
   iaNode('FG-SUPPLY', 'FG-SUPPLY', 'source', 80),
   iaNode('SB-006', 'SB-006', 'vessel', 80),
   iaNode('V-700', 'V-700', 'vessel', 7.0),
@@ -88,6 +95,8 @@ export const fuelGasNodes: PlantNode[] = [
 ];
 
 export const fuelGasEdges: PlantEdge[] = [
+  // SDV-006A is the plant-outlet take-off, upstream of the skid supply node.
+  { id: 'sdv006a-fgsupply', from: 'SDV-006A', to: 'FG-SUPPLY', kind: 'valved', conductance: 1, valveTag: 'SDV-006A' },
   // SDV-026B is the fuel-gas take-off isolation — target of the PAH-001 interlock.
   { id: 'fg-supply-sb006', from: 'FG-SUPPLY', to: 'SB-006', kind: 'valved', conductance: 1, valveTag: 'SDV-026B' },
   pipe('sb006-v700', 'SB-006', 'V-700'),

@@ -17,6 +17,7 @@ import { acknowledgeAlarm, PHASE1_ALARM_RULES, shelveAlarm } from '../engine/ala
 import { stepPia, evaluatePiaAlarms, isPiaAlarm, type PiaOptions, type PiaState } from '../engine/pia';
 import { stepTeg, evaluateTegAlarms, isTegAlarm, type TegOptions, type TegState } from '../engine/teg';
 import { createPiaGraph, createTegGraph } from '../data/phase3';
+import { TEMPLATES, type PlantSystem } from '../data/templates';
 import { stepPhysics, type PhysicsOptions } from '../engine/physics';
 import { evaluateInstrumentAirAlarms, isInstrumentAirAlarm, stepInstrumentAir } from '../engine/instrumentAir';
 import { evaluateCoolingWaterAlarms, isCoolingWaterAlarm, stepCoolingWater } from '../engine/coolingWater';
@@ -30,6 +31,7 @@ import {
 } from '../engine/electrical';
 import { useScenarioStore } from './scenarioStore';
 import { useEvalStore } from './evalStore';
+import { useUiStore } from './uiStore';
 
 type ScenarioOptions = Partial<PhysicsOptions> &
   Partial<PiaOptions> &
@@ -59,6 +61,12 @@ type State = {
   piaState: PiaState;
   tegOk: boolean;
   tegState: TegState;
+  /**
+   * Subsystems that were stepped on the previous tick. Used to detect a system
+   * leaving the active template so its graph can be rebuilt from the healthy
+   * baseline instead of leaking stale failures back in on re-enable.
+   */
+  activeSystems: PlantSystem[];
   t: number;
   running: boolean;
   scenarioOptions: ScenarioOptions;
@@ -83,6 +91,10 @@ type State = {
 // Tags that start the simulation closed (relief/vent/bypass lines and a few
 // isolation valves the exam expects shut at startup).
 const INITIALLY_CLOSED = /^(BDV|PSV|VT|BYP)/;
+// SDV-OUT-004 is NOT here: it is the first block valve in the SERIES chain on
+// the scrubber's only gas outlet (SB-004 -> SDV-OUT-004 -> SB-004-OUT ->
+// SDV-031A -> KG-31), so starting it closed would dead-end the plant. The
+// remaining tags are drain/discharge isolations that belong shut.
 const INITIALLY_CLOSED_TAGS = new Set(['SDV-032A', 'SDV-001B', 'XV-004D', 'DR-009']);
 
 const buildValves = (graph: PlantGraph): Map<string, Valve> => {
@@ -145,6 +157,9 @@ const makeInitial = () => {
     piaState: stepPia(piaGraph, 0),
     tegOk: true,
     tegState: stepTeg(tegGraph, 0),
+    // Empty on purpose: the first tick reads the active template and records
+    // its systems, so nothing is treated as "just deactivated" on boot/reset.
+    activeSystems: [] as PlantSystem[],
     t: 0,
     running: false,
     scenarioOptions: {} as ScenarioOptions,
@@ -243,21 +258,49 @@ export const useSimulationStore = create<State>()((set, get) => ({
     scenario.step(dt);
     const opts = scenario.getPhysicsOptions();
 
+    // Template scoping: only the subsystems the active template declares are
+    // stepped and evaluated. Every other system is treated as ABSENT, i.e.
+    // healthy — it contributes no alarms and cannot fail actuators. In
+    // particular the process train on `basic` must never see an air/fuel-gas/
+    // electrical failure it does not model.
+    const templateSystems = TEMPLATES[useUiStore.getState().template].systems;
+    const active = new Set<PlantSystem>(templateSystems);
+    const systemActive = (system: PlantSystem) => active.has(system);
+
+    // Decision (template switch while running): a system that just left the
+    // active template is DISCARDED — its graph is rebuilt from the healthy
+    // baseline. That keeps stale failures from resurfacing the moment the user
+    // re-enables the system, and matches the "inactive == absent" contract.
+    const deactivated = new Set(state.activeSystems.filter((s) => !active.has(s)));
+    const iaGraph = deactivated.has('instrumentAir') ? createInstrumentAirGraph() : state.iaGraph;
+    const cwGraph = deactivated.has('coolingWater') ? createCoolingWaterGraph() : state.cwGraph;
+    const fgGraph = deactivated.has('fuelGas') ? createFuelGasGraph() : state.fgGraph;
+    const elGraph = deactivated.has('electrical') ? createElectricalGraph() : state.elGraph;
+    const piaGraph = deactivated.has('pia') ? createPiaGraph() : state.piaGraph;
+    const tegGraph = deactivated.has('teg') ? createTegGraph() : state.tegGraph;
+
     // SDV-007 is the instrument-air isolation from skids 19/20: closing it is
-    // equivalent to losing the air header, so every actuator fails safe.
+    // equivalent to losing the air header, so every actuator fails safe. It is
+    // only meaningful while the instrument-air system is part of the template.
     const sdv007 = state.valves.get('SDV-007');
     const airLost = opts.instrumentAirOk === false || (sdv007 ? sdv007.position <= 0.05 : false);
     const iaOptions = {
       ...(opts.instrumentAirOptions ?? state.scenarioOptions.instrumentAirOptions),
       forceFail: airLost,
     };
-    const { instrumentAirOk } = stepInstrumentAir(state.iaGraph, dt, iaOptions);
+    let instrumentAirOk = true;
+    if (systemActive('instrumentAir')) {
+      instrumentAirOk = stepInstrumentAir(iaGraph, dt, iaOptions).instrumentAirOk;
+    }
 
     const cwOptions = {
       ...(opts.coolingWaterOptions ?? state.scenarioOptions.coolingWaterOptions),
       forceFail: opts.coolingWaterOk === false,
     };
-    const { coolingWaterOk } = stepCoolingWater(state.cwGraph, dt, cwOptions);
+    let coolingWaterOk = true;
+    if (systemActive('coolingWater')) {
+      coolingWaterOk = stepCoolingWater(cwGraph, dt, cwOptions).coolingWaterOk;
+    }
 
     const pcv700 = state.valves.get('PCV-700');
     const elOptions = {
@@ -265,8 +308,12 @@ export const useSimulationStore = create<State>()((set, get) => ({
       forceFail: opts.electricalOk === false,
       extraLoad: state.scenarioOptions.extraLoad ?? opts.electricalOptions?.extraLoad ?? 0,
     };
-    const electricalState = stepElectrical(state.elGraph, dt, elOptions, state.electricalState);
-    const electricalOk = electricalState.electricalOk;
+    let electricalState = deactivated.has('electrical') ? stepElectrical(elGraph, 0) : state.electricalState;
+    let electricalOk = true;
+    if (systemActive('electrical')) {
+      electricalState = stepElectrical(elGraph, dt, elOptions, electricalState);
+      electricalOk = electricalState.electricalOk;
+    }
 
     const fgOptions = {
       ...(opts.fuelGasOptions ?? state.scenarioOptions.fuelGasOptions),
@@ -276,19 +323,33 @@ export const useSimulationStore = create<State>()((set, get) => ({
       // gas out of the plant outlet and sags the V-700 / header pressure.
       load: electricalState.load,
     };
-    const { fuelGasOk, flameOk } = stepFuelGas(state.fgGraph, state.valves, dt, fgOptions);
+    let fuelGasOk = true;
+    let flameOk = true;
+    if (systemActive('fuelGas')) {
+      const fg = stepFuelGas(fgGraph, state.valves, dt, fgOptions);
+      fuelGasOk = fg.fuelGasOk;
+      flameOk = fg.flameOk;
+    }
 
     const piaOptions: PiaOptions = {
       ...(state.scenarioOptions as Partial<PiaOptions>),
     };
-    const piaState = stepPia(state.piaGraph, dt, piaOptions);
-    const piaOk = piaState.piaOk;
+    let piaState = deactivated.has('pia') ? stepPia(piaGraph, 0) : state.piaState;
+    let piaOk = true;
+    if (systemActive('pia')) {
+      piaState = stepPia(piaGraph, dt, piaOptions);
+      piaOk = piaState.piaOk;
+    }
 
     const tegOptions: TegOptions = {
       ...(state.scenarioOptions as Partial<TegOptions>),
     };
-    const tegState = stepTeg(state.tegGraph, dt, tegOptions);
-    const tegOk = tegState.tegOk;
+    let tegState = deactivated.has('teg') ? stepTeg(tegGraph, 0) : state.tegState;
+    let tegOk = true;
+    if (systemActive('teg')) {
+      tegState = stepTeg(tegGraph, dt, tegOptions);
+      tegOk = tegState.tegOk;
+    }
 
     const preUtilityAlarms = state.activeAlarms.filter(
       (a) =>
@@ -299,18 +360,18 @@ export const useSimulationStore = create<State>()((set, get) => ({
         !isPiaAlarm(a) &&
         !isTegAlarm(a)
     );
-    const prevIaAlarms = state.activeAlarms.filter(isInstrumentAirAlarm);
-    const prevCwAlarms = state.activeAlarms.filter(isCoolingWaterAlarm);
-    const prevFgAlarms = state.activeAlarms.filter(isFuelGasAlarm);
-    const prevElAlarms = state.activeAlarms.filter(isElectricalAlarm);
-    const prevPiaAlarms = state.activeAlarms.filter(isPiaAlarm);
-    const prevTegAlarms = state.activeAlarms.filter(isTegAlarm);
-    const iaAlarms = evaluateInstrumentAirAlarms(state.iaGraph, iaOptions, prevIaAlarms, state.t);
-    const cwAlarms = evaluateCoolingWaterAlarms(state.cwGraph, cwOptions, prevCwAlarms, state.t);
-    const fgAlarms = evaluateFuelGasAlarms(state.fgGraph, fgOptions, prevFgAlarms, state.t);
-    const elAlarms = evaluateElectricalAlarms(state.elGraph, elOptions, electricalState, prevElAlarms, state.t);
-    const piaAlarms = evaluatePiaAlarms(state.piaGraph, piaOptions, prevPiaAlarms, state.t);
-    const tegAlarms = evaluateTegAlarms(state.tegGraph, tegOptions, prevTegAlarms, state.t);
+    const prevIaAlarms = systemActive('instrumentAir') ? state.activeAlarms.filter(isInstrumentAirAlarm) : [];
+    const prevCwAlarms = systemActive('coolingWater') ? state.activeAlarms.filter(isCoolingWaterAlarm) : [];
+    const prevFgAlarms = systemActive('fuelGas') ? state.activeAlarms.filter(isFuelGasAlarm) : [];
+    const prevElAlarms = systemActive('electrical') ? state.activeAlarms.filter(isElectricalAlarm) : [];
+    const prevPiaAlarms = systemActive('pia') ? state.activeAlarms.filter(isPiaAlarm) : [];
+    const prevTegAlarms = systemActive('teg') ? state.activeAlarms.filter(isTegAlarm) : [];
+    const iaAlarms = systemActive('instrumentAir') ? evaluateInstrumentAirAlarms(iaGraph, iaOptions, prevIaAlarms, state.t) : [];
+    const cwAlarms = systemActive('coolingWater') ? evaluateCoolingWaterAlarms(cwGraph, cwOptions, prevCwAlarms, state.t) : [];
+    const fgAlarms = systemActive('fuelGas') ? evaluateFuelGasAlarms(fgGraph, fgOptions, prevFgAlarms, state.t) : [];
+    const elAlarms = systemActive('electrical') ? evaluateElectricalAlarms(elGraph, elOptions, electricalState, prevElAlarms, state.t) : [];
+    const piaAlarms = systemActive('pia') ? evaluatePiaAlarms(piaGraph, piaOptions, prevPiaAlarms, state.t) : [];
+    const tegAlarms = systemActive('teg') ? evaluateTegAlarms(tegGraph, tegOptions, prevTegAlarms, state.t) : [];
 
     const options: PhysicsOptions = {
       // Scenario base/trigger options first, then explicit operator overrides:
@@ -355,12 +416,13 @@ export const useSimulationStore = create<State>()((set, get) => ({
       piaState,
       tegOk,
       tegState,
-      iaGraph: state.iaGraph,
-      cwGraph: state.cwGraph,
-      fgGraph: state.fgGraph,
-      elGraph: state.elGraph,
-      piaGraph: state.piaGraph,
-      tegGraph: state.tegGraph,
+      iaGraph,
+      cwGraph,
+      fgGraph,
+      elGraph,
+      piaGraph,
+      tegGraph,
+      activeSystems: templateSystems,
     });
   },
 }));

@@ -23,6 +23,19 @@ describe('stores', () => {
     expect(useSimulationStore.getState().graph.nodes.get('SB-001')?.pressure).toBeGreaterThan(0);
   });
 
+  it('starts SDV-OUT-004 open and commandable on the SB-004 outlet', () => {
+    const sim = useSimulationStore.getState();
+    const valve = sim.valves.get('SDV-OUT-004');
+    expect(valve).toBeDefined();
+    // It is the first block valve in series on the scrubber's only outlet, so it
+    // must start open or the plant is dead-ended.
+    expect(valve!.position).toBe(1);
+    expect(valve!.targetPosition).toBe(1);
+
+    expect(sim.commandValve('SDV-OUT-004', 0, 'manual', 'isolation test')).toBe(true);
+    expect(useSimulationStore.getState().valves.get('SDV-OUT-004')!.targetPosition).toBe(0);
+  });
+
   it('simulation store applies ESD and resets safely', () => {
     const sim = useSimulationStore.getState();
     sim.setEsdLevel(1);

@@ -1,12 +1,36 @@
-import type { PlantEdge } from '../types/plant';
-
 export type PlantTemplate = 'basic' | 'medium' | 'complex';
+
+/**
+ * Subsystems the simulation can step. `process` is the Phase 1 separation train;
+ * every other id maps to one utility/auxiliary system in the engine.
+ */
+export type PlantSystem =
+  | 'process'
+  | 'instrumentAir'
+  | 'coolingWater'
+  | 'fuelGas'
+  | 'electrical'
+  | 'pia'
+  | 'teg';
+
+/** Canonical list of every subsystem the simulator knows how to step. */
+export const PLANT_SYSTEMS: PlantSystem[] = [
+  'process',
+  'instrumentAir',
+  'coolingWater',
+  'fuelGas',
+  'electrical',
+  'pia',
+  'teg',
+];
 
 export interface TemplateLayoutItem {
   x: number;
   y: number;
   rotation: number;
   symbol: string;
+  /** Optional render scale for the symbol; defaults to 1. */
+  scale?: number;
 }
 
 export interface Template {
@@ -14,9 +38,14 @@ export interface Template {
   name: string;
   description: string;
   viewBox: { width: number; height: number };
+  /**
+   * Subsystems the simulator steps (and raises alarms for) while this template
+   * is active. Anything not listed is treated as ABSENT/healthy: it is neither
+   * stepped nor evaluated, so it can never raise an alarm for a symbol that is
+   * not even on screen.
+   */
+  systems: PlantSystem[];
   items: Record<string, TemplateLayoutItem>;
-  edges: { id: string; from: string; to: string; kind: 'pipe' | 'valved' | 'control'; valveTag?: string }[];
-  activeSystems: string[];
 }
 
 const baseItems: Record<string, TemplateLayoutItem> = {
@@ -24,21 +53,20 @@ const baseItems: Record<string, TemplateLayoutItem> = {
   'WELL-2': { x: 160, y: 120, rotation: 0, symbol: 'well' },
   'WELL-3': { x: 240, y: 120, rotation: 0, symbol: 'well' },
   'MANIFOLD': { x: 80, y: 320, rotation: 0, symbol: 'manifold' },
-  'SB-009': { x: 235, y: 320, rotation: 0, symbol: 'vessel' },
-  'SB-001': { x: 480, y: 320, rotation: 0, symbol: 'vessel' },
-  'V-6505': { x: 800, y: 370, rotation: 0, symbol: 'vessel' },
-  'SB-004': { x: 1150, y: 370, rotation: 0, symbol: 'vessel' },
+  'SB-009': { x: 235, y: 320, rotation: 0, symbol: 'desander' },
+  'SB-001': { x: 480, y: 320, rotation: 0, symbol: 'slug-catcher-vessel' },
+  'V-6505': { x: 800, y: 370, rotation: 0, symbol: 'separator' },
+  'SB-004': { x: 1150, y: 370, rotation: 0, symbol: 'scrubber' },
   'KG-31': { x: 1400, y: 370, rotation: 0, symbol: 'compressor' },
   'COMPRESSION': { x: 1650, y: 370, rotation: 0, symbol: 'sink' },
   'TC-11': { x: 1500, y: 620, rotation: 0, symbol: 'vessel' },
   'TC-12': { x: 1800, y: 620, rotation: 0, symbol: 'vessel' },
   'SALES-GAS': { x: 2050, y: 620, rotation: 0, symbol: 'sink' },
   'FLARE-HEADER': { x: 950, y: 750, rotation: 0, symbol: 'flame' },
-  'FLARE-TIP': { x: 950, y: 820, rotation: 0, symbol: 'flame' },
   'TK-001': { x: 800, y: 650, rotation: 0, symbol: 'tank' },
   'TK-004': { x: 1150, y: 650, rotation: 0, symbol: 'tank' },
-  'ST-002': { x: 1300, y: 820, rotation: 0, symbol: 'vessel' },
-  'ST-003': { x: 1600, y: 820, rotation: 0, symbol: 'vessel' },
+  'ST-002': { x: 1300, y: 820, rotation: 0, symbol: 'tank' },
+  'ST-003': { x: 1600, y: 820, rotation: 0, symbol: 'tank' },
   'TKAG-41': { x: 1900, y: 820, rotation: 0, symbol: 'tank' },
   'TKAG-42': { x: 2200, y: 820, rotation: 0, symbol: 'tank' },
   'DISPATCH': { x: 2500, y: 820, rotation: 0, symbol: 'sink' },
@@ -56,14 +84,17 @@ const baseItems: Record<string, TemplateLayoutItem> = {
   'LV-6505': { x: 800, y: 520, rotation: 90, symbol: 'valve' },
   'SDV-001B': { x: 895, y: 520, rotation: 90, symbol: 'valve' },
   'V-IN-004': { x: 1080, y: 370, rotation: 90, symbol: 'valve' },
-  'SDV-031A': { x: 1260, y: 370, rotation: 90, symbol: 'valve' },
+  // Series chain on the SB-004 outlet, drawn left to right:
+  // SDV-OUT-004 -> SB-004-OUT -> SDV-031A.
+  'SB-004-OUT': { x: 1280, y: 370, rotation: 0, symbol: 'junction' },
+  'SDV-031A': { x: 1340, y: 370, rotation: 90, symbol: 'valve' },
   'SDV-032A': { x: 1510, y: 370, rotation: 90, symbol: 'valve' },
   'BDV-031B': { x: 1400, y: 180, rotation: 90, symbol: 'valve' },
   'FV-185': { x: 1400, y: 540, rotation: 90, symbol: 'valve' },
   'SDV-11OUT': { x: 1620, y: 620, rotation: 90, symbol: 'valve' },
   'FV-186': { x: 1650, y: 540, rotation: 90, symbol: 'valve' },
   'SDV-12OUT': { x: 1920, y: 620, rotation: 90, symbol: 'valve' },
-  'SDV-OUT-004': { x: 1290, y: 320, rotation: 90, symbol: 'valve' },
+  'SDV-OUT-004': { x: 1210, y: 370, rotation: 90, symbol: 'valve' },
   'BYP-004': { x: 1150, y: 260, rotation: 0, symbol: 'valve' },
   'VT-004': { x: 1150, y: 180, rotation: 90, symbol: 'valve' },
   'LV-004': { x: 1150, y: 520, rotation: 90, symbol: 'valve' },
@@ -161,109 +192,29 @@ const tegItems: Record<string, TemplateLayoutItem> = {
   'ZA-TEG-REBOILER': { x: 1850, y: 1130, rotation: 0, symbol: 'transmitter' },
 };
 
-const phase1Edges: PlantEdge[] = [
-  { id: 'well1-manifold', from: 'WELL-1', to: 'MANIFOLD', kind: 'pipe', conductance: 1 },
-  { id: 'well2-manifold', from: 'WELL-2', to: 'MANIFOLD', kind: 'pipe', conductance: 1 },
-  { id: 'well3-manifold', from: 'WELL-3', to: 'MANIFOLD', kind: 'pipe', conductance: 1 },
-  { id: 'manifold-sb009', from: 'MANIFOLD', to: 'SB-009', kind: 'valved', conductance: 1, valveTag: 'V-IN-009' },
-  { id: 'byp009', from: 'MANIFOLD', to: 'SB-001', kind: 'valved', conductance: 1, valveTag: 'BYP-009' },
-  { id: 'sb009-sb001', from: 'SB-009', to: 'SB-001', kind: 'valved', conductance: 1, valveTag: 'V-OUT-009' },
-  { id: 'sb009-sb001-in001', from: 'SB-009', to: 'SB-001', kind: 'valved', conductance: 1, valveTag: 'V-IN-001' },
-  { id: 'dr009-drain', from: 'SB-009', to: 'DRAIN-PIT', kind: 'valved', conductance: 1, valveTag: 'DR-009' },
-  { id: 'sb001-v6505', from: 'SB-001', to: 'V-6505', kind: 'valved', conductance: 1, valveTag: 'V-OUT-001' },
-  { id: 'sb001-v6505-in', from: 'SB-001', to: 'V-6505', kind: 'valved', conductance: 1, valveTag: 'V-IN-004' },
-  { id: 'byp001', from: 'SB-009', to: 'V-6505', kind: 'valved', conductance: 1, valveTag: 'BYP-001' },
-  { id: 'pv6505-sb004', from: 'V-6505', to: 'SB-004', kind: 'control', conductance: 1, valveTag: 'PV-6505' },
-  { id: 'bdv6505-flare', from: 'V-6505', to: 'FLARE-HEADER', kind: 'control', conductance: 1, valveTag: 'BDV-6505' },
-  { id: 'psv6505-flare', from: 'V-6505', to: 'FLARE-HEADER', kind: 'valved', conductance: 1, valveTag: 'PSV-6505AD/BD' },
-  { id: 'lv6505-tk001', from: 'V-6505', to: 'TK-001', kind: 'control', conductance: 1, valveTag: 'LV-6505' },
-  { id: 'sdv001b-drain', from: 'TK-001', to: 'DRAIN-PIT', kind: 'valved', conductance: 1, valveTag: 'SDV-001B' },
-  { id: 'sb004-kg31', from: 'SB-004', to: 'KG-31', kind: 'valved', conductance: 1, valveTag: 'SDV-031A' },
-  { id: 'kg31-compression', from: 'KG-31', to: 'COMPRESSION', kind: 'valved', conductance: 1, valveTag: 'SDV-032A' },
-  { id: 'bdv031-flare', from: 'KG-31', to: 'FLARE-HEADER', kind: 'control', conductance: 1, valveTag: 'BDV-031B' },
-  { id: 'kg31-tc11', from: 'KG-31', to: 'TC-11', kind: 'control', conductance: 1, valveTag: 'FV-185' },
-  { id: 'tc11-sales', from: 'TC-11', to: 'SALES-GAS', kind: 'control', conductance: 1, valveTag: 'SDV-11OUT' },
-  { id: 'kg31-tc12', from: 'KG-31', to: 'TC-12', kind: 'control', conductance: 1, valveTag: 'FV-186' },
-  { id: 'tc12-sales', from: 'TC-12', to: 'SALES-GAS', kind: 'control', conductance: 1, valveTag: 'SDV-12OUT' },
-  { id: 'tc11-st002', from: 'TC-11', to: 'ST-002', kind: 'control', conductance: 1, valveTag: 'LV-11LIQ' },
-  { id: 'tc12-st003', from: 'TC-12', to: 'ST-003', kind: 'control', conductance: 1, valveTag: 'LV-12LIQ' },
-  { id: 'kg31-st002', from: 'KG-31', to: 'ST-002', kind: 'control', conductance: 1, valveTag: 'LV-KG31LIQ' },
-  { id: 'st002-tkag41', from: 'ST-002', to: 'TKAG-41', kind: 'control', conductance: 1, valveTag: 'LV-002' },
-  { id: 'st003-tkag42', from: 'ST-003', to: 'TKAG-42', kind: 'control', conductance: 1, valveTag: 'LV-003' },
-  { id: 'ba051-dispatch', from: 'TKAG-41', to: 'DISPATCH', kind: 'valved', conductance: 1, valveTag: 'BA-051' },
-  { id: 'ba052-dispatch', from: 'TKAG-42', to: 'DISPATCH', kind: 'valved', conductance: 1, valveTag: 'BA-052' },
-  { id: 'byp004', from: 'SB-001', to: 'COMPRESSION', kind: 'valved', conductance: 1, valveTag: 'BYP-004' },
-  { id: 'vt004-flare', from: 'SB-004', to: 'FLARE-HEADER', kind: 'control', conductance: 1, valveTag: 'VT-004' },
-  { id: 'lv004-tk004', from: 'SB-004', to: 'TK-004', kind: 'control', conductance: 1, valveTag: 'LV-004' },
-  { id: 'xv004d-drain', from: 'TK-004', to: 'DRAIN-PIT', kind: 'valved', conductance: 1, valveTag: 'XV-004D' },
-];
-
-const utilityEdges: PlantEdge[] = [
-  { id: 'compA-recv', from: 'IA-COMP-A', to: 'IA-RECV', kind: 'pipe', conductance: 1 },
-  { id: 'compB-recv', from: 'IA-COMP-B', to: 'IA-RECV', kind: 'pipe', conductance: 1 },
-  { id: 'recv-header', from: 'IA-RECV', to: 'IA-HEADER', kind: 'pipe', conductance: 1 },
-  { id: 'pumpA-header', from: 'CW-PUMP-A', to: 'CW-HEADER', kind: 'pipe', conductance: 1 },
-  { id: 'pumpB-header', from: 'CW-PUMP-B', to: 'CW-HEADER', kind: 'pipe', conductance: 1 },
-  { id: 'header-return', from: 'CW-HEADER', to: 'CW-RETURN', kind: 'pipe', conductance: 1 },
-  { id: 'fg-supply-sb006', from: 'FG-SUPPLY', to: 'SB-006', kind: 'valved', conductance: 1, valveTag: 'SDV-026B' },
-  { id: 'sb006-v700', from: 'SB-006', to: 'V-700', kind: 'pipe', conductance: 1 },
-  { id: 'v700-fg001', from: 'V-700', to: 'FG-001', kind: 'valved', conductance: 1, valveTag: 'PCV-700' },
-  { id: 'fg-scrubber-reg', from: 'FG-001', to: 'FG-REG', kind: 'pipe', conductance: 1 },
-  { id: 'fg-reg-header', from: 'FG-REG', to: 'FG-HEADER', kind: 'pipe', conductance: 1 },
-  { id: 'fg-header-pilot', from: 'FG-HEADER', to: 'FG-PILOT', kind: 'pipe', conductance: 1 },
-  { id: 'fg-header-flare', from: 'FG-HEADER', to: 'FG-FLARE', kind: 'pipe', conductance: 1 },
-  { id: 'fg-header-heater', from: 'FG-HEADER', to: 'FG-HEATER', kind: 'pipe', conductance: 1 },
-  { id: 'gen-bus', from: 'GEN-001', to: 'BUS-MAIN', kind: 'pipe', conductance: 1 },
-  { id: 'bus-mcc', from: 'BUS-MAIN', to: 'MCC-001', kind: 'pipe', conductance: 1 },
-  { id: 'mcc-process', from: 'MCC-001', to: 'LOAD-PROC', kind: 'pipe', conductance: 1 },
-  { id: 'mcc-essential', from: 'MCC-001', to: 'LOAD-ESSENTIAL', kind: 'pipe', conductance: 1 },
-];
-
-const piaEdges: PlantEdge[] = [
-  { id: 'pia-supply-pumpA', from: 'PIA-SUPPLY', to: 'PIA-PUMP-A', kind: 'pipe', conductance: 1 },
-  { id: 'pia-supply-pumpB', from: 'PIA-SUPPLY', to: 'PIA-PUMP-B', kind: 'pipe', conductance: 1 },
-  { id: 'pia-pumpA-filter', from: 'PIA-PUMP-A', to: 'PIA-FILTER', kind: 'pipe', conductance: 1 },
-  { id: 'pia-pumpB-filter', from: 'PIA-PUMP-B', to: 'PIA-FILTER', kind: 'pipe', conductance: 1 },
-  { id: 'pia-filter-header', from: 'PIA-FILTER', to: 'PIA-HEADER', kind: 'pipe', conductance: 1 },
-  { id: 'pia-header-inj', from: 'PIA-HEADER', to: 'PIA-INJ-WELL', kind: 'pipe', conductance: 1 },
-];
-
-const tegEdges: PlantEdge[] = [
-  { id: 'teg-inlet-contactor', from: 'TEG-INLET', to: 'TEG-CONTACTOR', kind: 'pipe', conductance: 1 },
-  { id: 'teg-contactor-dry', from: 'TEG-CONTACTOR', to: 'TEG-DRY-GAS', kind: 'pipe', conductance: 1 },
-  { id: 'teg-contactor-rich', from: 'TEG-CONTACTOR', to: 'TEG-RICH-PUMP', kind: 'pipe', conductance: 1 },
-  { id: 'teg-rich-regen', from: 'TEG-RICH-PUMP', to: 'TEG-REGEN', kind: 'pipe', conductance: 1 },
-  { id: 'teg-regen-lean', from: 'TEG-REGEN', to: 'TEG-LEAN-PUMP', kind: 'pipe', conductance: 1 },
-  { id: 'teg-lean-tank', from: 'TEG-LEAN-PUMP', to: 'TEG-LEAN-TANK', kind: 'pipe', conductance: 1 },
-  { id: 'teg-tank-contactor', from: 'TEG-LEAN-TANK', to: 'TEG-CONTACTOR', kind: 'pipe', conductance: 1 },
-];
-
 export const TEMPLATES: Record<PlantTemplate, Template> = {
   basic: {
     id: 'basic',
     name: 'Básico',
     description: 'Tren de separación Phase 1 sin utilidades.',
     viewBox: { width: 2600, height: 900 },
+    systems: ['process'],
     items: baseItems,
-    edges: phase1Edges,
-    activeSystems: ['phase1'],
   },
   medium: {
     id: 'medium',
     name: 'Intermedio',
     description: 'Tren de separación + utilidades (aire, agua, fuel gas, electricidad).',
     viewBox: { width: 2600, height: 900 },
+    systems: ['process', 'instrumentAir', 'coolingWater', 'fuelGas', 'electrical'],
     items: { ...baseItems, ...utilityItems },
-    edges: [...phase1Edges, ...utilityEdges],
-    activeSystems: ['phase1', 'instrumentAir', 'coolingWater', 'fuelGas', 'electrical'],
   },
   complex: {
     id: 'complex',
     name: 'Complejo',
     description: 'Tren completo + utilidades + PIA + TEG.',
     viewBox: { width: 2600, height: 1200 },
+    systems: ['process', 'instrumentAir', 'coolingWater', 'fuelGas', 'electrical', 'pia', 'teg'],
     items: { ...baseItems, ...utilityItems, ...piaItems, ...tegItems },
-    edges: [...phase1Edges, ...utilityEdges, ...piaEdges, ...tegEdges],
-    activeSystems: ['phase1', 'instrumentAir', 'coolingWater', 'fuelGas', 'electrical', 'pia', 'teg'],
   },
 };
