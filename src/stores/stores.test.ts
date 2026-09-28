@@ -66,4 +66,52 @@ describe('stores', () => {
     expect(well.pressure).toBe(40);
     expect(useScenarioStore.getState().getPhysicsOptions().sourcePressure).toBe(95);
   });
+
+  it('esd-fire does not fail on the pre-trigger ticks', () => {
+    expect(useScenarioStore.getState().loadScenario('esd-fire')).toBe(true);
+    const graph = useSimulationStore.getState().graph;
+
+    // Fail used to be `esd > 0`, evaluated as `esd >= 0`: true even at level 0,
+    // and fail is checked before win, so the scenario went to 'lost' on tick 1 -
+    // before its own trigger at t=2 ever fired. It is a plain timeout now.
+    useScenarioStore.getState().step(1);
+    expect(useScenarioStore.getState().checkEndConditions(graph, [], 0)).toBeNull();
+    expect(useScenarioStore.getState().status).toBe('running');
+  });
+
+  it('esd-fire waits for a reset while the ESD is active', () => {
+    expect(useScenarioStore.getState().loadScenario('esd-fire')).toBe(true);
+    const graph = useSimulationStore.getState().graph;
+    useScenarioStore.getState().step(21); // trigger at t=2 has fired
+
+    // Past the 20 s win threshold but the ESD is still on: neither won nor lost.
+    expect(useScenarioStore.getState().checkEndConditions(graph, [], 1)).toBeNull();
+    expect(useScenarioStore.getState().status).toBe('running');
+
+    // Clearing it completes the win condition.
+    expect(useScenarioStore.getState().checkEndConditions(graph, [], 0)).toBe('won');
+  });
+
+  it('esd-fire loses on timeout when the ESD is never cleared', () => {
+    expect(useScenarioStore.getState().loadScenario('esd-fire')).toBe(true);
+    const graph = useSimulationStore.getState().graph;
+    useScenarioStore.getState().step(60);
+    expect(useScenarioStore.getState().checkEndConditions(graph, [], 1)).toBe('lost');
+  });
+
+  it('the ESD level is a one-tick impulse, so resetEsd survives the next tick', () => {
+    expect(useScenarioStore.getState().loadScenario('esd-fire')).toBe(true);
+    useSimulationStore.getState().setRunning(true);
+    for (let i = 0; i < 6; i++) useSimulationStore.getState().tick(1); // trigger at t=2
+    expect(useSimulationStore.getState().esdLevel).toBe(1);
+
+    expect(useSimulationStore.getState().resetEsd(true)).toBe(true);
+    expect(useSimulationStore.getState().esdLevel).toBe(0);
+
+    // `esdLevel` used to stay in scenario currentOptions, so tick's
+    // `Math.max(state.esdLevel, opts.esdLevel ?? 0)` put level 1 back here.
+    useSimulationStore.getState().tick(1);
+    expect(useSimulationStore.getState().esdLevel).toBe(0);
+    expect(useScenarioStore.getState().status).toBe('running');
+  });
 });

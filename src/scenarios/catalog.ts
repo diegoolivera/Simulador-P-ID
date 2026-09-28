@@ -42,7 +42,10 @@ export const esdFireScenario: Scenario = {
   baseOptions,
   triggers: [{ at: 2, kind: 'esd', payload: { level: 1 } }],
   win: [{ kind: 'time', threshold: 20 }, { kind: 'esd', threshold: 1, comparator: '<' }],
-  fail: [{ kind: 'time', threshold: 60 }, { kind: 'esd', threshold: 0, comparator: '>' }],
+  // Only a timeout can fail this one. The previous `esd > 0` rule was checked
+  // on every tick *before* win, so the scenario was lost at t=2 — the same tick
+  // its own trigger fires — and recovery was impossible by construction.
+  fail: [{ kind: 'time', threshold: 60 }],
 };
 
 /**

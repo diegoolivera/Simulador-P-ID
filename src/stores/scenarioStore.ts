@@ -67,9 +67,22 @@ const fire = (trigger: ScenarioTrigger, options: Partial<PhysicsOptions>) => {
   }
 };
 
+/**
+ * Threshold comparison for end conditions. `comparator: '>'` must be strict:
+ * an inclusive `>=` treats "reached the threshold" as "exceeded it", which
+ * loses a scenario on its very first tick whenever the threshold is 0. An
+ * absent comparator keeps the historical "at or beyond".
+ */
+const meets = (value: number, c: EndCondition, fallback: number): boolean => {
+  const t = c.threshold ?? fallback;
+  if (c.comparator === '<') return value < t;
+  if (c.comparator === '>') return value > t;
+  return value >= t;
+};
+
 const evalCondition = (c: EndCondition, graph: PlantGraph, alarms: Alarm[], elapsed: number, esdLevel: EsdLevel): boolean => {
   if (c.kind === 'time') return elapsed >= (c.threshold ?? 0);
-  if (c.kind === 'esd') return c.comparator === '<' ? esdLevel < (c.threshold ?? 1) : esdLevel >= (c.threshold ?? 1);
+  if (c.kind === 'esd') return meets(esdLevel, c, 1);
   if (c.kind === 'alarm') {
     const active = alarms.some((a) => a.active && (a.id === c.tag || a.tag === c.tag));
     return c.comparator === '<' ? !active : active;
@@ -77,7 +90,7 @@ const evalCondition = (c: EndCondition, graph: PlantGraph, alarms: Alarm[], elap
   if (c.kind === 'level') {
     const node = graph.nodes.get(c.tag ?? '');
     const value = node?.[c.field ?? 'pressure'];
-    return value === undefined ? false : c.comparator === '<' ? value < (c.threshold ?? 0) : value >= (c.threshold ?? 0);
+    return value === undefined ? false : meets(value, c, 0);
   }
   return false;
 };
@@ -103,7 +116,13 @@ export const useScenarioStore = create<State>()((set, get) => ({
     if (state.status !== 'running' || !state.active) return;
     const elapsed = state.elapsed + dt;
     const opts = { ...state.currentOptions };
-    delete opts.slug; // slug is a one-tick impulse; re-fired only by a new trigger
+    // Both `slug` and `esdLevel` are one-tick impulses: they are applied on the
+    // tick the trigger fires and then handed back to the live store state.
+    // Leaving `esdLevel` in currentOptions pinned it forever, because tick does
+    // `Math.max(state.esdLevel, opts.esdLevel ?? 0)` — so resetEsd() set 0 and
+    // the next tick restored 1, making the ESD unrecoverable while running.
+    delete opts.slug;
+    delete opts.esdLevel;
     let index = state.triggerIndex;
     while (index < state.active.triggers.length && state.active.triggers[index].at <= elapsed) {
       fire(state.active.triggers[index], opts);
