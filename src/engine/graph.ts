@@ -31,6 +31,33 @@ export class PlantGraph {
     this.topoCache = null;
   }
 
+  /**
+   * True when adding `from -> to` would close a directed cycle, i.e. when `from`
+   * is already reachable from `to` (or it is a self-edge).
+   *
+   * Cycles are legitimate here: the TEG glycol loop recirculates
+   * (contactor -> rich pump -> regen -> lean pump -> lean tank -> contactor), so
+   * `addEdge` must not reject them. What must not happen is a *user-drawn*
+   * cycle on the topologically sorted process graph — physics calls
+   * `getTopologicalOrder()` on every tick and would throw inside the timer.
+   * The P&ID editor checks this before creating an edge.
+   */
+  wouldCreateCycle(from: string, to: string): boolean {
+    if (from === to) return true;
+    const seen = new Set<string>();
+    const stack: string[] = [to];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (id === from) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const next of this.adjacency.get(id) ?? []) {
+        if (!seen.has(next)) stack.push(next);
+      }
+    }
+    return false;
+  }
+
   removeEdge(id: string): void {
     const edge = this.edgeById.get(id);
     if (!edge) return;

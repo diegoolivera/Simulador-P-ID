@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PHASE1_ALARM_RULES } from '../engine/alarms';
+import { SAFETY_TAGS } from '../engine/safetyTags';
 import { valveTypeFromTag } from '../engine/valve';
 import { Valve } from './Valve';
 import { Vessel } from './Vessel';
@@ -63,7 +64,7 @@ const kindForSymbol = (symbol: string): PlantNode['kind'] | null => {
 };
 
 export function PidSvg() {
-  const { graph, iaGraph, cwGraph, fgGraph, elGraph, piaGraph, tegGraph, valves, activeAlarms, addValve } = useSimulationStore();
+  const { graph, iaGraph, cwGraph, fgGraph, elGraph, piaGraph, tegGraph, valves, activeAlarms, addValve, removeValve } = useSimulationStore();
   const allGraphs = useMemo(() => [graph, iaGraph, cwGraph, fgGraph, elGraph, piaGraph, tegGraph], [graph, iaGraph, cwGraph, fgGraph, elGraph, piaGraph, tegGraph]);
   const { selectedTag, selectTag, editMode, template } = useUiStore();
   const templateDef = TEMPLATES[template];
@@ -72,6 +73,8 @@ export function PidSvg() {
   const [connectMode, setConnectMode] = useState<'pipe' | 'valve' | null>(null);
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [draggingTag, setDraggingTag] = useState<string | null>(null);
+  /** Why the last add/connect/delete was refused, shown in the palette hint. */
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const dragStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   // Reset layout when template changes
@@ -87,7 +90,14 @@ export function PidSvg() {
   useEffect(() => {
     if (!stored?.edges) return;
     for (const edge of stored.edges) {
-      if (graph.nodes.has(edge.from) && graph.nodes.has(edge.to) && !graph.edges.find((e) => e.id === edge.id)) {
+      // A persisted layout can predate this guard; a cycle here would survive
+      // until physics asked for the topological order on the next tick.
+      if (
+        graph.nodes.has(edge.from) &&
+        graph.nodes.has(edge.to) &&
+        !graph.edges.find((e) => e.id === edge.id) &&
+        !graph.wouldCreateCycle(edge.from, edge.to)
+      ) {
         graph.addEdge({ id: edge.id, from: edge.from, to: edge.to, kind: 'pipe', conductance: 1 });
       }
     }
@@ -165,7 +175,20 @@ export function PidSvg() {
       }
       if (connectSource !== tag) {
         const id = `edge-${connectMode}-${connectSource}-${tag}`;
-        if (!graph.edges.find((e) => e.id === id) && graph.nodes.has(connectSource) && graph.nodes.has(tag)) {
+        // A refused connection must say why, same as a refused delete —
+        // otherwise the click silently does nothing.
+        let refusal: string | null = null;
+        if (graph.edges.find((e) => e.id === id)) {
+          refusal = `ya existe ${connectSource} → ${tag}`;
+        } else if (!graph.nodes.has(connectSource) || !graph.nodes.has(tag)) {
+          refusal = `falta un extremo (${connectSource} → ${tag})`;
+        } else if (graph.wouldCreateCycle(connectSource, tag)) {
+          refusal = `${connectSource} → ${tag} cerraría un ciclo`;
+        }
+
+        if (refusal) {
+          setActionNotice(`Conexión no creada: ${refusal}.`);
+        } else {
           if (connectMode === 'pipe') {
             graph.addEdge({ id, from: connectSource, to: tag, kind: 'pipe', conductance: 1 });
           } else {
@@ -183,6 +206,7 @@ export function PidSvg() {
             const nextEdges = graph.edges.map((e) => ({ id: e.id, from: e.from, to: e.to }));
             saveLayout(template, nextItems, nextEdges);
           }
+          setActionNotice(null);
         }
       }
       setConnectSource(null);
@@ -215,6 +239,7 @@ export function PidSvg() {
     }
     saveLayout(template, next, graph.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })));
     selectTag(tag);
+    setActionNotice(null);
   };
 
   const deleteSelected = () => {
@@ -223,6 +248,7 @@ export function PidSvg() {
     const next = { ...items };
     delete next[tag];
     setItems(next);
+    setActionNotice(null);
     // Remove any edges that use this tag as a valve and remove from valve store
     if (valves.has(tag)) {
       for (const edge of [...graph.edges]) {
@@ -230,19 +256,32 @@ export function PidSvg() {
           graph.removeEdge(edge.id);
         }
       }
-      valves.delete(tag);
+      removeValve(tag);
     }
     graph.removeNode(tag);
     saveLayout(template, next, graph.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })));
     selectTag(null);
   };
 
+  // Deleting an alarm source or an ESD/interlock valve silently disarms its
+  // safety functions: evaluateAlarmRules skips rules whose node is gone, and a
+  // missing valve reads as position ?? 1 (open). Block it with a visible reason
+  // rather than letting the click quietly succeed. An empty selection just
+  // disables the button — that is not an error, so it gets no alarm-coloured
+  // reason.
+  const deleteBlockedReason =
+    selectedTag && SAFETY_TAGS.has(selectedTag)
+      ? `${selectedTag} forma parte de alarmas, ESD o interlock y no se puede eliminar.`
+      : undefined;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {editMode && (
         <Palette
           onAdd={addItem}
-          onDelete={deleteSelected}
+          onDelete={!selectedTag || deleteBlockedReason ? undefined : deleteSelected}
+          deleteDisabledReason={deleteBlockedReason}
+          notice={actionNotice}
           onConnect={(mode) => {
             if (connectMode === mode) {
               setConnectMode(null);
@@ -251,6 +290,7 @@ export function PidSvg() {
             }
             setConnectSource(null);
             selectTag(null);
+            setActionNotice(null);
           }}
           connectMode={connectMode}
         />

@@ -54,6 +54,21 @@ describe('PlantGraph', () => {
     expect(() => graph.getTopologicalOrder()).toThrow('Cycle detected');
   });
 
+  it('predicts cycle-closing edges so the P&ID editor can refuse them', () => {
+    const graph = new PlantGraph();
+    graph.addNode(makeNode('a'));
+    graph.addNode(makeNode('b'));
+    graph.addEdge({ id: 'ab', from: 'a', to: 'b', kind: 'pipe', conductance: 1 });
+
+    // addEdge itself must NOT reject cycles: the TEG glycol loop is a real
+    // recirculation path. The check exists for user-drawn edges on the process
+    // graph, where a cycle would make physics throw inside the tick timer.
+    expect(graph.wouldCreateCycle('b', 'a')).toBe(true);
+    expect(graph.wouldCreateCycle('a', 'b')).toBe(false);
+    expect(graph.wouldCreateCycle('a', 'a')).toBe(true);
+    expect(graph.wouldCreateCycle('b', 'missing')).toBe(false);
+  });
+
   it('caches topological order and invalidates on structural change', () => {
     const graph = new PlantGraph();
     graph.addNode(makeNode('a'));

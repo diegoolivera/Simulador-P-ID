@@ -72,6 +72,7 @@ type State = {
   setScenarioOptions: (options: ScenarioOptions) => void;
   lockValve: (tag: string, locked: boolean, reason: string) => boolean;
   addValve: (tag: string, type: Valve['type']) => boolean;
+  removeValve: (tag: string) => boolean;
   acknowledgeAlarm: (tag: string) => void;
   shelveAlarm: (tag: string, duration: number) => void;
   setLoopMode: (tag: string, mode: LoopMode) => void;
@@ -192,6 +193,18 @@ export const useSimulationStore = create<State>()((set, get) => ({
     valves.set(tag, valve);
     const audit: AuditEvent[] = [{ t, source: 'operator', tag, field: 'created', from: '', to: type, reason: 'Added from P&ID editor' }];
     if (audit.length) useEvalStore.getState().record(audit);
+    set({ valves: new Map(valves) });
+    return true;
+  },
+  // Deleting straight off the live Map (as the P&ID editor used to) leaves the
+  // snapshot identity untouched, so ElementPanel/PiPanel keep rendering the
+  // valve that is no longer there. Go through set() and audit it like addValve.
+  removeValve: (tag) => {
+    const { valves, t } = get();
+    if (!valves.delete(tag)) return false;
+    useEvalStore.getState().record([
+      { t, source: 'operator', tag, field: 'removed', from: '', to: '', reason: 'Removed from P&ID editor' },
+    ]);
     set({ valves: new Map(valves) });
     return true;
   },
