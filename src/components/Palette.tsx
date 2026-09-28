@@ -1,3 +1,5 @@
+import { PALETTE_ITEMS } from './symbolRegistry';
+
 interface PaletteProps {
   onAdd: (symbol: string) => void;
   onDelete?: () => void;
@@ -9,28 +11,12 @@ interface PaletteProps {
   connectMode?: 'pipe' | 'valve' | null;
 }
 
-const ITEMS = [
-  { symbol: 'well', label: 'Pozo' },
-  { symbol: 'manifold', label: 'Manifold' },
-  { symbol: 'vessel', label: 'Vaso' },
-  { symbol: 'tank', label: 'Tanque' },
-  { symbol: 'valve', label: 'Válvula' },
-  { symbol: 'transmitter', label: 'Transmisor' },
-  { symbol: 'controller', label: 'Controlador' },
-  { symbol: 'pump', label: 'Bomba' },
-  { symbol: 'compressor', label: 'Compresor' },
-  { symbol: 'source', label: 'Fuente' },
-  { symbol: 'sink', label: 'Sumidero' },
-  { symbol: 'header', label: 'Header' },
-  { symbol: 'flame', label: 'Flare' },
-];
-
 export function Palette({ onAdd, onDelete, deleteDisabledReason, notice, onConnect, connectMode }: PaletteProps) {
   return (
     <div style={{ padding: 12, borderBottom: '1px solid var(--border-panel)', background: 'var(--bg-panel-elevated)' }}>
       <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, color: 'var(--text-primary)' }}>Paleta de componentes</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {ITEMS.map((item) => (
+        {PALETTE_ITEMS.map((item) => (
           <button
             key={item.symbol}
             onClick={() => onAdd(item.symbol)}
