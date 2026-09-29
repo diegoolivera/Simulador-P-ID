@@ -37,6 +37,7 @@
     "LV-6505": { "x": 800, "y": 520, "rotation": 90, "symbol": "valve" },
     "SDV-001B": { "x": 895, "y": 520, "rotation": 90, "symbol": "valve" },
     "V-IN-004": { "x": 1080, "y": 370, "rotation": 90, "symbol": "valve" },
+    "SB-004-IN": { "x": 1020, "y": 370, "rotation": 0, "symbol": "junction" },
     "SB-004-OUT": { "x": 1280, "y": 370, "rotation": 0, "symbol": "junction" },
     "SDV-031A": { "x": 1340, "y": 370, "rotation": 90, "symbol": "valve" },
     "SDV-032A": { "x": 1510, "y": 370, "rotation": 90, "symbol": "valve" },

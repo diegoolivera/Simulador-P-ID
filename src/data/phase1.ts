@@ -31,6 +31,13 @@ export const phase1Nodes: PlantNode[] = [
   // SB-004 outlet (SDV-OUT-004 -> SB-004-OUT -> SDV-031A). A short line segment
   // between the valves; its pressure settles where the two valve flows meet.
   baseNode('SB-004-OUT', 'SB-004-OUT', 'junction', 72),
+  // Mirror of SB-004-OUT on the INLET: PV-6505 and the scrubber's inlet block
+  // valve V-IN-004 are in SERIES (V-6505 -> PV-6505 -> SB-004-IN -> V-IN-004 ->
+  // SB-004). The junction is upstream of V-IN-004 on purpose: liquid is carried
+  // at a conserved ratio through a junction, while a V-IN-* valve leaving a
+  // VESSEL is treated as a level-driven liquid drain (see physics LIQ_LINE), so
+  // this ordering keeps the gas block valve from doubling as a phantom drain.
+  baseNode('SB-004-IN', 'SB-004-IN', 'junction', 80),
   // Motocompresor adds 40 kg/cm2 of head downstream of the suction scrubber.
   { ...baseNode('KG-31', 'KG-31', 'vessel', 49), boost: 40 },
   { ...baseNode('TC-11', 'TC-11', 'vessel', 80), condensateK: 1e-5 }, // Contactora TEG 1: ~12.5 m3/d condensate at 1.25 MMsm3/d
@@ -83,12 +90,22 @@ export const phase1Edges: PlantEdge[] = [
   valved('sb009-sb001', 'SB-009', 'SB-001', 'V-OUT-009'),
   valved('sb009-sb001-in001', 'SB-009', 'SB-001', 'V-IN-001'),
   valved('dr009-drain', 'SB-009', 'DRAIN-PIT', 'DR-009'),
-  valved('sb001-v6505', 'SB-001', 'V-6505', 'V-OUT-001'),
-  valved('sb001-v6505-in', 'SB-001', 'V-6505', 'V-IN-004'),
+  // SB-001 -> V-6505 is a SINGLE run through V-OUT-001. It used to carry a
+  // second parallel edge through V-IN-004, but V-IN-004 is SB-004's INLET block
+  // valve (see LotoWizard and the legacy prototype), not a second SB-001 outlet.
+  // Parallel edges sum conductance: with both R = 1 the pair behaved as one
+  // R = 0.5 edge (1/Req = 1/R1 + 1/R2 = 1/1 + 1/1 = 2 -> Req = 0.5). Keeping the
+  // surviving edge at R = 0.5 preserves this run's design flow by construction.
+  valved('sb001-v6505', 'SB-001', 'V-6505', 'V-OUT-001', 0.5),
   valved('byp001', 'SB-009', 'V-6505', 'BYP-001'),
-  // R=0.6 so PV-6505 sits near c=0.5 holding SP 89 (with R=1.6 the line alone needed
-  // dp=4.2 at full flow and the valve pegged at 100% — SP was unreachable).
-  control('pv6505-v6505', 'V-6505', 'SB-004', 'PV-6505', 0.6),
+  // SB-004 inlet: PV-6505 and the inlet block valve V-IN-004 are wired in SERIES
+  // with an intermediate junction, mirroring the outlet chain. PV-6505 keeps its
+  // design R = 0.6 (so it sits near c = 0.5 holding SP 89; with R = 1.6 the line
+  // alone needed dp = 4.2 at full flow and the valve pegged at 100%, leaving SP
+  // unreachable). V-IN-004 is a full-bore on/off block valve, so it gets the
+  // same small R = 0.35 as SDV-OUT-004 and barely moves the design point.
+  control('pv6505-sb004in', 'V-6505', 'SB-004-IN', 'PV-6505', 0.6),
+  valved('sb004in-sb004', 'SB-004-IN', 'SB-004', 'V-IN-004', 0.35),
   control('bdv6505-flare', 'V-6505', 'FLARE-HEADER', 'BDV-6505'),
   valved('psv6505-flare', 'V-6505', 'FLARE-HEADER', 'PSV-6505AD/BD'),
   control('lv6505-tk001', 'V-6505', 'TK-001', 'LV-6505'),

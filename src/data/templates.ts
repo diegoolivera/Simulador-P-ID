@@ -86,7 +86,10 @@ const baseItems: Record<string, TemplateLayoutItem> = {
   'PSV-6505AD/BD': { x: 883, y: 579, rotation: 90, symbol: 'valve' },
   'LV-6505': { x: 800, y: 520, rotation: 90, symbol: 'valve' },
   'SDV-001B': { x: 869, y: 663, rotation: 90, symbol: 'valve' },
-  'V-IN-004': { x: 710, y: 356, rotation: 90, symbol: 'valve' },
+  'V-IN-004': { x: 1080, y: 370, rotation: 90, symbol: 'valve' },
+  // Series chain on the SB-004 inlet, drawn left to right:
+  // V-6505 -> PV-6505 -> SB-004-IN -> V-IN-004 -> SB-004.
+  'SB-004-IN': { x: 1020, y: 370, rotation: 0, symbol: 'junction' },
   // Series chain on the SB-004 outlet, drawn left to right:
   // SDV-OUT-004 -> SB-004-OUT -> SDV-031A.
   'SB-004-OUT': { x: 1280, y: 370, rotation: 0, symbol: 'junction' },

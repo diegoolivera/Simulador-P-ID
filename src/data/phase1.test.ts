@@ -54,6 +54,54 @@ describe('Phase 1 plant data', () => {
     expect(phase1Edges.filter((e) => e.from === 'SB-004' && e.to === 'KG-31')).toHaveLength(0);
   });
 
+  it('wires V-IN-004 on the SB-004 inlet run, in series with PV-6505', () => {
+    const inlet = phase1Edges.find((e) => e.valveTag === 'V-IN-004');
+    expect(inlet, 'V-IN-004 must be wired to an edge').toBeDefined();
+    // It is the scrubber's inlet block valve, so it lands on SB-004 — not on
+    // the SB-001 -> V-6505 run it used to sit on.
+    expect(inlet!.to).toBe('SB-004');
+    expect(inlet!.from).not.toBe('SB-001');
+    expect(phase1Edges.filter((e) => e.valveTag === 'V-IN-004' && e.to === 'V-6505')).toHaveLength(0);
+
+    // PV-6505 feeds the intermediate junction that V-IN-004 drains, and no
+    // parallel V-6505 -> SB-004 edge bypasses the two series valves.
+    const pv = phase1Edges.find((e) => e.valveTag === 'PV-6505');
+    expect(pv).toBeDefined();
+    expect(pv!.to).toBe(inlet!.from);
+    expect(phase1Edges.filter((e) => e.from === 'V-6505' && e.to === 'SB-004')).toHaveLength(0);
+  });
+
+  it('keeps SB-001 -> V-6505 a single run so V-OUT-001 alone blocks it', () => {
+    const runs = phase1Edges.filter((e) => e.from === 'SB-001' && e.to === 'V-6505');
+    expect(runs).toHaveLength(1);
+    expect(runs[0].valveTag).toBe('V-OUT-001');
+
+    bootSim();
+    const before = useSimulationStore.getState().graph.nodes.get('V-6505')!.gasFlow;
+    expect(before, 'V-6505 must be fed before the outlet is blocked').toBeGreaterThan(0);
+    expect(useSimulationStore.getState().commandValve('V-OUT-001', 0, 'manual', 'block SB-001 outlet')).toBe(true);
+    for (let i = 0; i < 5; i += 1) useSimulationStore.getState().tick(1);
+    expect(useSimulationStore.getState().graph.nodes.get('V-6505')!.gasFlow).toBe(0);
+  });
+
+  it('closing V-IN-004 alone isolates the SB-004 inlet', () => {
+    bootSim();
+    const before = useSimulationStore.getState().graph.nodes.get('SB-004')!.gasFlow;
+    expect(before, 'SB-004 must be fed before the inlet is blocked').toBeGreaterThan(0);
+    expect(useSimulationStore.getState().commandValve('V-IN-004', 0, 'manual', 'isolate SB-004 inlet')).toBe(true);
+    for (let i = 0; i < 5; i += 1) useSimulationStore.getState().tick(1);
+    expect(useSimulationStore.getState().graph.nodes.get('SB-004')!.gasFlow).toBe(0);
+    // Upstream is untouched: the separator keeps feeding the scrubber line.
+    expect(useSimulationStore.getState().graph.nodes.get('V-6505')!.gasFlow).toBeGreaterThan(0);
+  });
+
+  it('stays acyclic with the inlet junction on the flow path', () => {
+    const order = createPhase1Graph().getTopologicalOrder();
+    expect(order).toHaveLength(phase1Nodes.length);
+    expect(order.indexOf('V-6505')).toBeLessThan(order.indexOf('SB-004-IN'));
+    expect(order.indexOf('SB-004-IN')).toBeLessThan(order.indexOf('SB-004'));
+  });
+
   it('registers both SB-004 outlet block valves as real valve entries', () => {
     useSimulationStore.getState().init();
     const valves = useSimulationStore.getState().valves;
